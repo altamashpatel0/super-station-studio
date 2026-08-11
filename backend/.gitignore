@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Database
+data/
+*.db
+*.sqlite3
+
+# Env / secrets
+.env
+*.pem
+*.key
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Media - never commit music files
+# (test fixtures are generated on-the-fly in tests/conftest.py, not committed)
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.aac
+*.ogg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
