@@ -1,15 +1,11 @@
-# V0.1 Audio Engine
-av>=11.0.0
-sounddevice>=0.4.6
-numpy>=1.24.0
-
-# V0.2 Music Library
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-sqlalchemy>=2.0.0
-mutagen>=1.47.0
-pydantic>=2.6.0
-
-# Testing
-pytest>=8.0.0
-httpx>=0.27.0
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+mutagen
+numpy
+av
+sounddevice
+pytest
+pytest-asyncio
+httpx

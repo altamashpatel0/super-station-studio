@@ -94,6 +94,58 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* -- Tabs (shared by Library / Playlists / Queue) -------------------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: var(--text-muted);
+  padding: 9px 16px;
+}
+
+.tab-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: transparent;
+}
+
+.tab-button.is-active {
+  color: var(--accent);
+  background: var(--panel);
+  border-color: var(--border);
+  position: relative;
+  top: 1px;
+}
+
+/* -- Shared banners (Playlists / Queue) ------------------------------ */
+
+.banner {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.banner--success {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.banner--error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

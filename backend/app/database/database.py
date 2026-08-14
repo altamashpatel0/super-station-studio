@@ -15,7 +15,7 @@ import os
 from contextlib import contextmanager
 from typing import Generator, Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
@@ -36,7 +36,20 @@ def _make_engine(db_url: str | None = None):
         url = f"sqlite:///{DEFAULT_DB_PATH}"
 
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    return create_engine(url, connect_args=connect_args, future=True)
+    new_engine = create_engine(url, connect_args=connect_args, future=True)
+
+    if url.startswith("sqlite"):
+        # SQLite ignores FK constraints unless explicitly told to
+        # enforce them per-connection. Needed as of V0.3 so invalid
+        # `playlist_tracks.playlist_id` / `song_id` references are
+        # rejected at the DB layer, not just by app-level checks.
+        @event.listens_for(new_engine, "connect")
+        def _enable_sqlite_fk(dbapi_connection, connection_record):  # noqa: ARG001
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+    return new_engine
 
 
 engine = _make_engine()

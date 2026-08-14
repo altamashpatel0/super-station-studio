@@ -2,41 +2,47 @@
 app/api/engine_provider.py
 ============================
 
-Holds the single shared `src.AudioEngine` instance used by the API
-layer. One process -> one audio output channel in V0.2 (matching the
-V0.1 engine's own single-output-per-instance design), so this is a
-plain module-level singleton rather than a FastAPI dependency that
-constructs a new engine per request.
+Owns the single, shared, unmodified V0.1 `AudioEngine` instance used
+by every consumer of playback in this process:
 
-Kept in its own tiny module so both `api/playback.py` and `main.py`
-(for startup/shutdown wiring) can import it without a circular import.
+    api/playback.py   -> direct "play this library song right now"
+    services/queue_manager.py -> V0.3 queue-driven playback
+
+One process = one `AudioEngine` = one audio output device, exactly as
+V0.1 intended ("one `AudioEngine` instance corresponds to one audio
+output channel" - see `src/engine.py`). This module's only job is to
+construct that single instance lazily and hand the same object to
+every caller.
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-from src import AudioEngine
+from src.engine import AudioEngine
 
 _engine: Optional[AudioEngine] = None
 
 
 def get_engine() -> AudioEngine:
+    """Return the process-wide `AudioEngine`, constructing it on first use."""
     global _engine
     if _engine is None:
         _engine = AudioEngine()
     return _engine
 
 
-def set_engine(engine: Optional[AudioEngine]) -> None:
-    """Test/startup hook to inject a specific engine instance (e.g. one
-    built with a fake audio_output backend during tests)."""
+def reset_engine(engine: Optional[AudioEngine] = None) -> AudioEngine:
+    """
+    Test hook: replace the shared engine with `engine` (typically one
+    built with a fake decoder/audio_output so tests don't touch real
+    audio hardware or real files), or pass nothing to clear back to a
+    fresh real `AudioEngine`.
+
+    Application code should never call this - it exists purely so
+    `tests/conftest.py` can isolate the engine (and whatever is
+    subscribed to its `on_track_end` hook) between test cases.
+    """
     global _engine
     _engine = engine
-
-
-def shutdown_engine() -> None:
-    global _engine
-    if _engine is not None:
-        _engine.shutdown()
-        _engine = None
+    return get_engine()

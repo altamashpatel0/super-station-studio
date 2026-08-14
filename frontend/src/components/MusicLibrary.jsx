@@ -17,17 +17,16 @@ const SORT_COLUMNS = [
   { key: "duration", label: "Duration" },
 ];
 
-export default function MusicLibrary() {
+export default function MusicLibrary({ selectedId, onSelectSong, nowPlaying, setNowPlaying }) {
   const [songs, setSongs] = useState([]);
   const [stats, setStats] = useState(null);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
-  const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState(null); // {processed, added, ...} while scanning
-  const [playerState, setPlayerState] = useState("stopped");
   const [errorMessage, setErrorMessage] = useState(null);
+  const playerState = nowPlaying?.state ?? "stopped";
 
   const loadSongs = useCallback(async () => {
     setLoading(true);
@@ -87,12 +86,13 @@ export default function MusicLibrary() {
     }
   };
 
-  const handlePlaySelected = async () => {
-    if (selectedId == null) return;
+  const handlePlaySelected = async (songOverride) => {
+    const song = songOverride ?? selectedSong;
+    if (!song) return;
     setErrorMessage(null);
     try {
-      const status = await api.playSong(selectedId);
-      setPlayerState(status.state.toLowerCase());
+      const status = await api.playSong(song.id);
+      setNowPlaying({ song, state: status.state.toLowerCase() });
       await loadSongs(); // refresh play_count / last_played for the played track
     } catch (err) {
       setErrorMessage(err.message);
@@ -102,7 +102,7 @@ export default function MusicLibrary() {
   const handleTransport = async (action) => {
     try {
       const status = await action();
-      setPlayerState(status.state.toLowerCase());
+      setNowPlaying((prev) => ({ ...prev, state: status.state.toLowerCase() }));
     } catch (err) {
       setErrorMessage(err.message);
     }
@@ -178,10 +178,10 @@ export default function MusicLibrary() {
               <tr
                 key={song.id}
                 className={song.id === selectedId ? "is-selected" : ""}
-                onClick={() => setSelectedId(song.id)}
+                onClick={() => onSelectSong(song)}
                 onDoubleClick={() => {
-                  setSelectedId(song.id);
-                  handlePlaySelected();
+                  onSelectSong(song);
+                  handlePlaySelected(song);
                 }}
               >
                 <td>{song.title}</td>
@@ -216,7 +216,7 @@ export default function MusicLibrary() {
           )}
         </div>
         <div className="library__transport-buttons">
-          <button onClick={handlePlaySelected} disabled={!selectedSong}>
+          <button onClick={() => handlePlaySelected()} disabled={!selectedSong}>
             ▶ Play
           </button>
           <button onClick={() => handleTransport(api.pause)}>⏸ Pause</button>

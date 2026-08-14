@@ -2,21 +2,29 @@
 app/database/models.py
 =======================
 
-SQLAlchemy ORM models for the Music Library (V0.2).
+SQLAlchemy ORM models for the Music Library (V0.2) and, as of V0.3,
+Playlists.
 
-Only one table is needed for V0.2: `songs`. It is deliberately flat
-(no separate artists/albums tables yet) because normalizing further is
-not required for search/scan/stat features at this stage, and keeping
-it flat keeps upserts on rescans simple. Normalizing into
-artists/albums tables is a reasonable V0.3+ enhancement if needed.
+`songs` is deliberately flat (no separate artists/albums tables)
+because normalizing further is not required for search/scan/stat
+features, and keeping it flat keeps upserts on rescans simple.
+
+`playlists` / `playlist_tracks` (V0.3) model a classic many-to-many
+between playlists and songs, with `playlist_tracks.position` as the
+join-row attribute that preserves track order within a playlist. A
+song row can be referenced by any number of playlist_tracks rows
+(across playlists, or more than once within the same playlist), and a
+playlist can reference any number of songs.
 """
 
 from __future__ import annotations
 
 import datetime
+import enum
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -109,3 +117,180 @@ class ScannedFolder(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     folder_path: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     last_scanned: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Playlist(Base):
+    """A named, user-ordered collection of songs (V0.3)."""
+
+    __tablename__ = "playlists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+
+    # `passive_deletes=True` defers to the DB's ON DELETE CASCADE
+    # (rather than SQLAlchemy issuing per-row DELETEs) - see
+    # PlaylistTrack.playlist_id below.
+    tracks: Mapped[list["PlaylistTrack"]] = relationship(
+        "PlaylistTrack",
+        back_populates="playlist",
+        order_by="PlaylistTrack.position",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def to_dict(self, *, include_tracks: bool = False) -> dict:
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "track_count": len(self.tracks),
+        }
+        if include_tracks:
+            data["tracks"] = [t.to_dict(include_song=True) for t in self.tracks]
+        return data
+
+
+class PlaylistTrack(Base):
+    """
+    One song's membership + position within one playlist (the join row
+    of the playlists<->songs many-to-many relationship).
+
+    Both foreign keys cascade on delete: removing a playlist drops its
+    track rows, and hard-deleting a song (`SongRepository.delete`)
+    removes it from any playlists it appeared in, so a playlist can
+    never point at a song (or a deleted playlist) that no longer
+    exists. This requires SQLite's per-connection FK enforcement to be
+    turned on - see `database.py`.
+    """
+
+    __tablename__ = "playlist_tracks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    playlist_id: Mapped[int] = mapped_column(
+        ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    song_id: Mapped[int] = mapped_column(
+        ForeignKey("songs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Dense, zero-based order within a playlist. Deliberately *not*
+    # DB-uniqueness-constrained on (playlist_id, position): multi-row
+    # reorders/inserts are easier to apply correctly as a single
+    # renumbering pass in the repository than to sequence around a
+    # unique index with SQLite's non-deferrable constraints.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    added_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+
+    playlist: Mapped["Playlist"] = relationship("Playlist", back_populates="tracks")
+    song: Mapped["Song"] = relationship("Song")
+
+    __table_args__ = (
+        Index("ix_playlist_tracks_playlist_position", "playlist_id", "position"),
+    )
+
+    def to_dict(self, *, include_song: bool = False) -> dict:
+        data = {
+            "id": self.id,
+            "playlist_id": self.playlist_id,
+            "song_id": self.song_id,
+            "position": self.position,
+            "added_at": self.added_at.isoformat() if self.added_at else None,
+        }
+        if include_song and self.song is not None:
+            data["song"] = self.song.to_dict()
+        return data
+
+
+class QueueItemStatus(str, enum.Enum):
+    """Lifecycle of one item in the runtime Playback Queue (V0.3).
+
+    Only `QUEUED` is ever set by the queue API itself (`add_track` /
+    `add_playlist`). The rest exist so the (future) integration with
+    the V0.1 AudioEngine has a place to record what actually happened
+    to an item - this module never transitions an item into any of
+    them on its own.
+    """
+
+    QUEUED = "QUEUED"
+    PLAYING = "PLAYING"
+    PLAYED = "PLAYED"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
+
+
+class QueueItem(Base):
+    """
+    One song's slot in the single, global runtime playback queue
+    (V0.3) - the "up next" list consumed by the (existing, unmodified)
+    V0.1 `AudioEngine`.
+
+    Unlike playlists, there is exactly one queue for the whole
+    application (no `queue_id` - every row belongs to *the* queue), and
+    `position` is a dense, zero-based order over every row in the
+    table, maintained entirely by `QueueRepository` the same way
+    `PlaylistTrack.position` is maintained by `PlaylistRepository`.
+
+    `song_id` cascades on delete (`ON DELETE CASCADE`, enforced via
+    SQLite's per-connection `PRAGMA foreign_keys=ON` - see
+    `database.py`) so hard-deleting a song from the library also drops
+    it from the queue, exactly like it does from playlists. The queue
+    never stores or copies audio data - it only ever references an
+    existing `songs.id`.
+    """
+
+    __tablename__ = "queue_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    song_id: Mapped[int] = mapped_column(
+        ForeignKey("songs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Dense, zero-based order over the whole queue. Deliberately not
+    # DB-uniqueness-constrained, for the same reason as
+    # `PlaylistTrack.position`: multi-row reorders are easier to apply
+    # correctly as a single renumbering pass in the repository than to
+    # sequence around a unique index with SQLite's non-deferrable
+    # constraints.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    status: Mapped[str] = mapped_column(
+        SAEnum(QueueItemStatus, name="queue_item_status", native_enum=False, validate_strings=True),
+        nullable=False,
+        default=QueueItemStatus.QUEUED.value,
+    )
+
+    added_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+
+    song: Mapped["Song"] = relationship("Song")
+
+    __table_args__ = (
+        Index("ix_queue_items_position", "position"),
+    )
+
+    def to_dict(self, *, include_song: bool = False) -> dict:
+        status_value = self.status.value if isinstance(self.status, QueueItemStatus) else self.status
+        data = {
+            "id": self.id,
+            "song_id": self.song_id,
+            "position": self.position,
+            "status": status_value,
+            "added_at": self.added_at.isoformat() if self.added_at else None,
+        }
+        if include_song and self.song is not None:
+            data["song"] = self.song.to_dict()
+        return data

@@ -52,6 +52,57 @@ export const api = {
   resume: () => request("/playback/resume", { method: "POST" }),
   stop: () => request("/playback/stop", { method: "POST" }),
   getPlaybackStatus: () => request("/playback/status"),
+
+  // -- Playlists (V0.3) ---------------------------------------------
+  listPlaylists: () => request("/playlists"),
+  getPlaylist: (id) => request(`/playlists/${id}`),
+  createPlaylist: (name, description = "") =>
+    request("/playlists", {
+      method: "POST",
+      body: JSON.stringify({ name, description }),
+    }),
+  updatePlaylist: (id, { name, description } = {}) =>
+    request(`/playlists/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, description }),
+    }),
+  deletePlaylist: (id) => request(`/playlists/${id}`, { method: "DELETE" }),
+  addTrackToPlaylist: (playlistId, songId, position) =>
+    request(`/playlists/${playlistId}/tracks`, {
+      method: "POST",
+      body: JSON.stringify({ song_id: songId, position: position ?? null }),
+    }),
+  removeTrackFromPlaylist: (playlistId, trackId) =>
+    request(`/playlists/${playlistId}/tracks/${trackId}`, { method: "DELETE" }),
+  reorderPlaylistTracks: (playlistId, trackIds) =>
+    request(`/playlists/${playlistId}/tracks/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ track_ids: trackIds }),
+    }),
+  clearPlaylistTracks: (playlistId) =>
+    request(`/playlists/${playlistId}/tracks`, { method: "DELETE" }),
+
+  // -- Queue (V0.3) ---------------------------------------------------
+  getQueue: () => request("/queue"),
+  addTrackToQueue: (songId, playNext = false) =>
+    request("/queue", {
+      method: "POST",
+      body: JSON.stringify({ song_id: songId, play_next: playNext }),
+    }),
+  addPlaylistToQueue: (playlistId) =>
+    request(`/queue/playlist/${playlistId}`, { method: "POST" }),
+  removeQueueItem: (queueItemId) =>
+    request(`/queue/${queueItemId}`, { method: "DELETE" }),
+  clearQueue: () => request("/queue", { method: "DELETE" }),
+  moveQueueItemUp: (queueItemId) =>
+    request(`/queue/${queueItemId}/move-up`, { method: "POST" }),
+  moveQueueItemDown: (queueItemId) =>
+    request(`/queue/${queueItemId}/move-down`, { method: "POST" }),
+  reorderQueue: (queueItemIds) =>
+    request("/queue/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ queue_item_ids: queueItemIds }),
+    }),
 };
 
 /** Poll a scan job until it's completed/failed, calling onProgress along the way. */
