@@ -60,8 +60,7 @@ def _write_mp3(path: Path, duration_seconds: float = 0.5, sample_rate: int = 441
     import av
 
     container = av.open(str(path), mode="w")
-    stream = container.add_stream("mp3", rate=sample_rate)
-    stream.channels = 2
+    stream = container.add_stream("mp3", rate=sample_rate, layout="stereo")
 
     n_samples = int(duration_seconds * sample_rate)
     t = np.linspace(0, duration_seconds, n_samples, endpoint=False)
