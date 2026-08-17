@@ -5,9 +5,11 @@ app/main.py
 Application entrypoint: creates the FastAPI app, wires up routers, and
 initializes the database on startup.
 
-All four route modules are mounted here: `library` and `playlists`
+The route modules are mounted here: `library` and `playlists`
 (V0.2/V0.3, backed by `library_service`, `SongRepository`, and
-`PlaylistRepository`, all complete and independently tested) plus
+`PlaylistRepository`, all complete and independently tested), `assets`
+(V0.5 Part 1, backed by `asset_service`/`AssetRepository` - a
+completely separate table/library from Music Library), plus
 `playback` and `queue` (V0.1/V0.3, backed by the shared `AudioEngine`
 and `QueueManager`). This module only wires routers into the app; it
 does not implement any request-handling logic of its own.
@@ -26,6 +28,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from .api.assets import router as assets_router
 from .api.library import router as library_router
 from .api.playback import router as playback_router
 from .api.playlists import router as playlists_router
@@ -35,10 +38,18 @@ from .database.database import init_db
 
 app = FastAPI(title="Music Library / Playout Backend")
 
+
+@app.get("/api/health")
+def health_check() -> dict:
+    """Liveness probe used by the test suite and ops tooling."""
+    return {"status": "ok"}
+
+
 app.include_router(library_router)
 app.include_router(playback_router)
 app.include_router(playlists_router)
 app.include_router(queue_router)
+app.include_router(assets_router)
 
 
 @app.on_event("startup")

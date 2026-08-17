@@ -214,6 +214,97 @@ class PlaylistTrack(Base):
         return data
 
 
+class AssetType(str, enum.Enum):
+    """Kind of a Jingle/Advertisement Library asset (V0.5 Part 1).
+
+    Deliberately just these two for V0.5 Part 1 - the library only
+    stores/manages the audio, it does not yet know how or when either
+    type gets played (that's automation/scheduler territory, V0.6+).
+    """
+
+    JINGLE = "JINGLE"
+    ADVERTISEMENT = "ADVERTISEMENT"
+
+
+class Asset(Base):
+    """
+    One row per imported Jingle/Advertisement audio file (V0.5 Part 1).
+
+    Deliberately a separate table from `songs`: assets are a distinct
+    library (station imaging / ad spots) with their own type and
+    category, not part of the browsable Music Library, and Music
+    Library rows must never be affected by asset operations (create,
+    update, enable/disable, delete). Mirrors `Song`'s
+    soft-availability pattern (`enabled`) and `Playlist`'s
+    `created_at`/`updated_at` bookkeeping.
+
+    V0.5 Part 2 adds two playback-management columns:
+
+      - `priority` (int, default 0, higher = higher priority) - used
+        by the Part 2 deterministic ordering (`priority` desc, then
+        the existing `name` asc ordering).
+      - `cooldown_seconds` (int, default 0, must not be negative) -
+        validated at the schema/service layer; no scheduler/rotation
+        logic reads it yet (out of scope for Part 2).
+
+    Both are plain metadata columns, same as `category`/`description`
+    - no automatic playback, scheduling, or rotation behavior is
+    implied or implemented by their presence.
+    """
+
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    asset_type: Mapped[str] = mapped_column(
+        SAEnum(AssetType, name="asset_type", native_enum=False, validate_strings=True),
+        nullable=False,
+        index=True,
+    )
+
+    # Identity - normalized absolute path, unique like `Song.file_path`
+    # so the same file can't be imported into the asset library twice.
+    file_path: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    duration: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    category: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+
+    # Soft-availability, same rationale as `Song.enabled`: a disabled
+    # asset is excluded from (future) automated playback selection but
+    # stays in the database so history/references survive.
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+    # --- V0.5 Part 2: playback-management metadata ---------------------
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
+    cooldown_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+
+    def to_dict(self) -> dict:
+        asset_type = self.asset_type.value if isinstance(self.asset_type, AssetType) else self.asset_type
+        return {
+            "id": self.id,
+            "name": self.name,
+            "asset_type": asset_type,
+            "file_path": self.file_path,
+            "duration": self.duration,
+            "category": self.category,
+            "description": self.description,
+            "enabled": self.enabled,
+            "priority": self.priority,
+            "cooldown_seconds": self.cooldown_seconds,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class QueueItemStatus(str, enum.Enum):
     """Lifecycle of one item in the runtime Playback Queue (V0.3).
 

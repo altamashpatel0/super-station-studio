@@ -46,3 +46,26 @@ def reset_engine(engine: Optional[AudioEngine] = None) -> AudioEngine:
     global _engine
     _engine = engine
     return get_engine()
+
+
+def set_engine(engine: Optional[AudioEngine]) -> AudioEngine:
+    """
+    Backward-compatible alias for `reset_engine`.
+
+    Older tests (e.g. `tests/test_playback_api.py`) install their own
+    fake-backed engine via this name. Kept as a thin wrapper so both
+    call sites work against the same single `_engine` global.
+    """
+    return reset_engine(engine)
+
+
+def shutdown_engine() -> None:
+    """
+    Backward-compatible test hook: shut down whatever engine is
+    currently installed (if any) and clear it back to `None`, so the
+    next `get_engine()` call constructs a fresh real `AudioEngine`.
+    """
+    global _engine
+    if _engine is not None:
+        _engine.shutdown()
+    _engine = None
