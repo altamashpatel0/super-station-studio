@@ -34,6 +34,7 @@ from .api.playback import router as playback_router
 from .api.playlists import router as playlists_router
 from .api.queue import router as queue_router
 from .api.queue_manager_provider import get_queue_manager
+from .api.scheduler import router as scheduler_router
 from .database.database import init_db
 
 from .api.asset_playback_provider import (
@@ -55,6 +56,7 @@ app.include_router(playback_router)
 app.include_router(playlists_router)
 app.include_router(queue_router)
 app.include_router(assets_router)
+app.include_router(scheduler_router)
 
 
 @app.on_event("startup")

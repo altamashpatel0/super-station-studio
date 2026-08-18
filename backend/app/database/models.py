@@ -367,6 +367,83 @@ class AssetPlaybackState(Base):
         default=0,
     )
 
+class ScheduleTargetType(str, enum.Enum):
+    """V0.6 Part 1 scheduler target types. Playback is out of scope here."""
+    SONG = "SONG"
+    JINGLE = "JINGLE"
+    ADVERTISEMENT = "ADVERTISEMENT"
+    PLAYLIST = "PLAYLIST"
+
+
+class Schedule(Base):
+    """V0.6 Part 1 schedule definition; contains no playback logic."""
+
+    __tablename__ = "schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(
+        SAEnum(
+            ScheduleTargetType,
+            name="schedule_target_type",
+            native_enum=False,
+            validate_strings=True,
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
+
+    # Canonical form: ",0,2,4," where 0=Monday ... 6=Sunday.
+    days_of_week: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default=",0,1,2,3,4,5,6,",
+        index=True,
+    )
+
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+
+    def day_list(self) -> list[int]:
+        if not self.days_of_week:
+            return []
+        return [
+            int(value)
+            for value in self.days_of_week.strip(",").split(",")
+            if value
+        ]
+
+    def to_dict(self) -> dict:
+        target_type = (
+            self.target_type.value
+            if isinstance(self.target_type, ScheduleTargetType)
+            else self.target_type
+        )
+        return {
+            "id": self.id,
+            "name": self.name,
+            "target_type": target_type,
+            "target_id": self.target_id,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "days_of_week": self.day_list(),
+            "enabled": self.enabled,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class QueueItemStatus(str, enum.Enum):
     """Lifecycle of one item in the runtime Playback Queue (V0.3).
 
