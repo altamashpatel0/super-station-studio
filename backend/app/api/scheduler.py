@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,10 +10,26 @@ from ..database.database import get_db
 from ..database.repositories.schedule_repository import ScheduleNotFoundError
 from ..schemas.scheduler import ScheduleCreate, ScheduleOut, ScheduleUpdate
 from ..services import scheduler_service
+from ..services.clock_wheel import ClockWheel
 from ..services.scheduler_service import InvalidScheduleError
 
 
 router = APIRouter(prefix="/api/schedules", tags=["scheduler"])
+
+
+def _parse_at(value: Optional[str]) -> datetime:
+    if value is None:
+        return datetime.now()
+
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="at must be a valid ISO 8601 datetime",
+        ) from exc
 
 
 @router.post("", response_model=ScheduleOut, status_code=201)
@@ -85,3 +102,31 @@ def disable_schedule(schedule_id: int, db: Session = Depends(get_db)):
         return scheduler_service.disable_schedule(db, schedule_id).to_dict()
     except ScheduleNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/clock/current")
+def get_current_clock_schedule(
+    at: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    now = _parse_at(at)
+    result = ClockWheel(db).get_current_schedule(now)
+
+    return {
+        "at": now.isoformat(),
+        "schedule": result.to_dict() if result else None,
+    }
+
+
+@router.get("/clock/next")
+def get_next_clock_schedule(
+    at: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    now = _parse_at(at)
+    result = ClockWheel(db).get_next_schedule(now)
+
+    return {
+        "at": now.isoformat(),
+        "schedule": result.to_dict() if result else None,
+    }
