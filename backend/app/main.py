@@ -36,6 +36,11 @@ from .api.queue import router as queue_router
 from .api.queue_manager_provider import get_queue_manager
 from .database.database import init_db
 
+from .api.asset_playback_provider import (
+    get_asset_playback_manager,
+)
+
+
 app = FastAPI(title="Music Library / Playout Backend")
 
 
@@ -55,8 +60,13 @@ app.include_router(assets_router)
 @app.on_event("startup")
 def _on_startup() -> None:
     init_db()
-    get_queue_manager()  # eagerly registers QueueManager on the shared engine
 
+    # Register asset playback listener BEFORE QueueManager.
+    # This guarantees asset completion is recorded before the queue
+    # reacts to the same AudioEngine completion event.
+    get_asset_playback_manager()
+
+    get_queue_manager()
 
 @app.on_event("shutdown")
 def _on_shutdown() -> None:

@@ -304,68 +304,6 @@ class Asset(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-class AssetPlaybackState(Base):
-    """
-    Runtime/history state for one Jingle or Advertisement asset.
-
-    Kept in a separate table so V0.5 playback state does not alter the
-    existing assets table or the V0.5 Part 1/Part 2 metadata contract.
-    """
-
-    __tablename__ = "asset_playback_states"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    asset_id: Mapped[int] = mapped_column(
-        ForeignKey("assets.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
-
-    state: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-        default="IDLE",
-        index=True,
-    )
-
-    started_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
-    last_played_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-        index=True,
-    )
-
-    completed_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
-    failed_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
-    stopped_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
-    last_error: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    play_count: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
 
 class QueueItemStatus(str, enum.Enum):
     """Lifecycle of one item in the runtime Playback Queue (V0.3).

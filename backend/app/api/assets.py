@@ -28,6 +28,16 @@ from ..schemas.assets import AssetImportRequest, AssetOut, AssetUpdate
 from ..services import asset_service
 from ..services.asset_service import InvalidAssetError
 
+from .asset_playback_provider import (
+    get_asset_playback_manager,
+)
+
+from ..services.asset_playback_manager import (
+    AssetCooldownError,
+    AssetPlaybackError,
+    AssetPlaybackFileError,
+)
+
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
@@ -76,6 +86,73 @@ def get_asset(asset_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"No asset with id {asset_id}.")
     return asset.to_dict()
 
+@router.post("/{asset_id}/play")
+def play_asset(
+    asset_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Manually play a Jingle or Advertisement through the
+    existing shared AudioEngine.
+    """
+
+    try:
+        result = (
+            get_asset_playback_manager()
+            .play_asset(
+                db,
+                asset_id,
+            )
+        )
+
+        return result
+
+    except AssetNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except AssetCooldownError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    except AssetPlaybackError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    except AudioEngineError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{asset_id}/playback-status")
+def asset_playback_status(
+    asset_id: int,
+    db: Session = Depends(get_db),
+):
+    """Return the latest playback state for one asset."""
+
+    try:
+        return (
+            get_asset_playback_manager()
+            .get_status(
+                db,
+                asset_id,
+            )
+        )
+
+    except AssetNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
 
 @router.put("/{asset_id}", response_model=AssetOut)
 def update_asset(asset_id: int, request: AssetUpdate, db: Session = Depends(get_db)):
