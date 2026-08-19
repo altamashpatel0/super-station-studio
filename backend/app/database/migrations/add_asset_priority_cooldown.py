@@ -1,36 +1,23 @@
 """
 app/database/migrations/add_asset_priority_cooldown.py
-=========================================================
+======================================================
 
-V0.5 Part 2 schema update: adds `priority` and `cooldown_seconds` to
-an *existing* `assets` table in place.
+V0.8 Part 2 database compatibility migration.
 
-Why a hand-rolled migration instead of `Base.metadata.create_all()`:
-`create_all` only creates tables that don't exist yet - it never
-alters an existing table's columns, so on any database that already
-has V0.5 Part 1's `assets` table (with real imported jingles/ads in
-it), the new columns would simply never appear. This module closes
-that gap without dropping or recreating anything.
+Problem fixed:
+Older V0.5/V0.6 databases can already contain an `assets` table created
+before `priority` and `cooldown_seconds` were introduced. SQLAlchemy's
+create_all() does NOT alter existing tables, so the application can fail
+with:
 
-Safety properties:
-  - Idempotent: inspects `assets`'s current columns first and only
-    issues an `ALTER TABLE ... ADD COLUMN` for a column that's
-    actually missing. Safe to call on every application startup,
-    including against a fresh V0.5 Part 2 database that already has
-    both columns (from `Base.metadata.create_all`) - it's then a
-    no-op.
-  - Additive only: only ever adds columns to `assets`. Never drops,
-    renames, or recreates any table, and never touches `songs`,
-    `scanned_folders`, `playlists`, `playlist_tracks`, or
-    `queue_items`.
-  - Data-preserving: `ALTER TABLE ADD COLUMN ... DEFAULT ...` backfills
-    the default for every existing row in the same statement (SQLite
-    semantics) - no existing asset row, and no other table's data, is
-    touched.
-  - No-op if `assets` doesn't exist yet at all (e.g. a brand-new
-    database): in that case `Base.metadata.create_all()` will create
-    it with the new columns already present, so there's nothing for
-    this migration to do.
+    sqlite3.OperationalError: no such column: assets.priority
+
+This migration is:
+- additive only
+- idempotent
+- data preserving
+- safe on fresh databases
+- safe to run on every application startup
 """
 
 from __future__ import annotations
@@ -40,38 +27,61 @@ from sqlalchemy.engine import Engine
 
 _TABLE = "assets"
 
-# (column_name, DDL fragment). Order matters only for readability.
-_NEW_COLUMNS = [
+_NEW_COLUMNS = (
     ("priority", "INTEGER NOT NULL DEFAULT 0"),
     ("cooldown_seconds", "INTEGER NOT NULL DEFAULT 0"),
-]
+)
+
+_PRIORITY_INDEX = "ix_assets_priority"
 
 
 def upgrade_asset_priority_cooldown(engine: Engine) -> list[str]:
-    """Add any missing `priority`/`cooldown_seconds` columns to an
-    existing `assets` table. Returns the list of column names that
-    were actually added (empty list if nothing needed to change).
+    """
+    Add missing asset playback metadata columns to an existing database.
 
-    Call this once at application startup, after
-    `Base.metadata.create_all(bind=engine)` (so a brand-new database
-    gets a `assets` table with both columns already, and this becomes
-    a no-op), and before the app starts serving requests.
+    Returns a list containing columns that were actually added.
+
+    The function never drops, recreates, or rewrites existing rows.
     """
     inspector = inspect(engine)
 
     if _TABLE not in inspector.get_table_names():
-        # Nothing to migrate - `create_all` will create the table with
-        # both columns already present (see module docstring).
+        # create_all() is responsible for a brand-new assets table.
         return []
 
-    existing_columns = {col["name"] for col in inspector.get_columns(_TABLE)}
+    existing = {column["name"] for column in inspector.get_columns(_TABLE)}
     added: list[str] = []
 
-    with engine.begin() as conn:
+    with engine.begin() as connection:
         for column_name, ddl in _NEW_COLUMNS:
-            if column_name in existing_columns:
+            if column_name in existing:
                 continue
-            conn.execute(text(f"ALTER TABLE {_TABLE} ADD COLUMN {column_name} {ddl}"))
+
+            connection.execute(
+                text(
+                    f"ALTER TABLE {_TABLE} "
+                    f"ADD COLUMN {column_name} {ddl}"
+                )
+            )
             added.append(column_name)
 
+        # The ORM model declares an index on priority. Existing databases
+        # created before that index should receive it as well.
+        indexes = {
+            index.get("name")
+            for index in inspect(connection).get_indexes(_TABLE)
+        }
+
+        if "priority" in existing or "priority" in {name for name, _ in _NEW_COLUMNS}:
+            if _PRIORITY_INDEX not in indexes:
+                connection.execute(
+                    text(
+                        f"CREATE INDEX IF NOT EXISTS "
+                        f"{_PRIORITY_INDEX} ON {_TABLE} (priority)"
+                    )
+                )
+
     return added
+
+
+__all__ = ["upgrade_asset_priority_cooldown"]

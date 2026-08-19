@@ -1,9 +1,7 @@
 /**
  * frontend/src/api.js
  * ====================
- * Thin fetch wrapper around the V0.2 Music Library + Playback API.
- * Every call goes through `request()` so error handling is consistent
- * and components don't repeat fetch/json boilerplate.
+ * Thin fetch wrapper around the backend API.
  */
 
 const BASE = "/api";
@@ -13,6 +11,7 @@ async function request(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -23,6 +22,7 @@ async function request(path, options = {}) {
     }
     throw new Error(detail);
   }
+
   if (res.status === 204) return null;
   return res.json();
 }
@@ -52,6 +52,28 @@ export const api = {
   resume: () => request("/playback/resume", { method: "POST" }),
   stop: () => request("/playback/stop", { method: "POST" }),
   getPlaybackStatus: () => request("/playback/status"),
+
+  // V0.8 Part 1 — read-only live station snapshot.
+  getLiveStatus: (options = {}) => request("/live/status", options),
+  getLiveAssistStatus: (options = {}) => request("/live-assist/status", options),
+  setLiveAssistVolume: (volume) =>
+    request("/live-assist/volume", {
+      method: "POST",
+      body: JSON.stringify({ volume }),
+    }),
+  listAssets: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/assets${qs ? `?${qs}` : ""}`);
+  },
+  playAsset: (assetId) => request(`/assets/${assetId}/play`, { method: "POST" }),
+  getPlaybackReport: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/reports/playback${qs ? `?${qs}` : ""}`);
+  },
+  getReportSummary: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/reports/summary${qs ? `?${qs}` : ""}`);
+  },
 
   // -- Playlists (V0.3) ---------------------------------------------
   listPlaylists: () => request("/playlists"),

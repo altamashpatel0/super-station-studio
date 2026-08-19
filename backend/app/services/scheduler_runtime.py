@@ -65,6 +65,8 @@ class SchedulerRuntime:
 
         # Identity of the occurrence that was most recently started.
         self._started_occurrence: Optional[tuple[int, dt.datetime]] = None
+        self._attempted_occurrence: Optional[tuple[int, dt.datetime]] = None
+        self._suppressed_occurrence: Optional[tuple[int, dt.datetime]] = None
 
         self._last_selection: Optional[SelectionResult] = None
         self._last_error: Optional[str] = None
@@ -108,6 +110,9 @@ class SchedulerRuntime:
             with self._lock:
                 if self._started_occurrence == occurrence_key:
                     return self._last_selection
+                if self._suppressed_occurrence == occurrence_key:
+                    return None
+                self._attempted_occurrence = occurrence_key
 
             selection = select_for_current_schedule(db, current)
             if selection is None:
@@ -190,6 +195,25 @@ class SchedulerRuntime:
         """
         with self._lock:
             self._started_occurrence = None
+            self._attempted_occurrence = None
+            self._suppressed_occurrence = None
+
+    def suppress_current_occurrence(self) -> bool:
+        """Suppress the occurrence that most recently failed to start.
+
+        Returns True when an occurrence was available to suppress.
+        The active AudioEngine is never stopped by this method.
+        """
+        with self._lock:
+            if self._attempted_occurrence is None:
+                return False
+            self._suppressed_occurrence = self._attempted_occurrence
+            self._started_occurrence = None
+            return True
+
+    def get_attempted_occurrence(self) -> Optional[tuple[int, dt.datetime]]:
+        with self._lock:
+            return self._attempted_occurrence
 
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval):

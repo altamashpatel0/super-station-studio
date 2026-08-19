@@ -1,48 +1,79 @@
 """
 app/main.py
-============
+===========
 
-Application entrypoint: creates the FastAPI app, wires up routers, and
-initializes the database on startup.
+FastAPI application entrypoint and V0.7 station lifecycle wiring.
 
-The route modules are mounted here: `library` and `playlists`
-(V0.2/V0.3, backed by `library_service`, `SongRepository`, and
-`PlaylistRepository`, all complete and independently tested), `assets`
-(V0.5 Part 1, backed by `asset_service`/`AssetRepository` - a
-completely separate table/library from Music Library), plus
-`playback` and `queue` (V0.1/V0.3, backed by the shared `AudioEngine`
-and `QueueManager`). This module only wires routers into the app; it
-does not implement any request-handling logic of its own.
+The application keeps the existing shared AudioEngine/QueueManager ownership.
+V0.7 Part 5 adds one StationRuntime lifecycle owner for:
+    SchedulerRuntime
+    SchedulerFailureRecovery
+    PlaybackContinuation
+    AutomationWorker
+    PlaybackWatchdog
 
-Startup deliberately constructs the shared `QueueManager` eagerly
-(via `get_queue_manager()`), not lazily on first use. `QueueManager`
-subscribes to the engine's `on_track_end` hook in its constructor, and
-that subscription has to exist *before* the first `stop()`/track
-completion happens - including one triggered from the plain
-`/api/playback/*` routes, which know nothing about the queue - or
-manual-stop/auto-advance bookkeeping would silently be skipped for
-whatever happened before the queue was first touched.
+The StationRuntime is started after the existing playback/queue listeners have
+been registered and is stopped before the AudioEngine is shut down.
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from .api.assets import router as assets_router
+from .api.asset_upload import router as asset_upload_router
 from .api.library import router as library_router
+from .api.live import router as live_router
+from .api.live_assist import router as live_assist_router
 from .api.playback import router as playback_router
 from .api.playlists import router as playlists_router
+from .api.reports import router as reports_router
 from .api.queue import router as queue_router
 from .api.queue_manager_provider import get_queue_manager
 from .api.scheduler import router as scheduler_router
+from .api.asset_playback_provider import get_asset_playback_manager
+from .api.engine_provider import get_engine
 from .database.database import init_db
+from .services.playback_history import PlaybackHistoryRecorder
+from .services.scheduler_recovery import SchedulerFailureRecovery
+from .services.scheduler_runtime import SchedulerRuntime
+from .services.station_runtime import StationRuntime
 
-from .api.asset_playback_provider import (
-    get_asset_playback_manager,
-)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+
+    # Register history before QueueManager so the original track is captured
+    # before QueueManager can auto-start the next track on completion.
+    get_asset_playback_manager()
+
+    engine = get_engine()
+    history = PlaybackHistoryRecorder(engine)
+    app.state.playback_history = history
+
+    # Existing queue listener must be installed before station automation starts.
+    get_queue_manager()
+    asset_manager = get_asset_playback_manager()
+
+    runtime = SchedulerRuntime(engine, asset_manager)
+    recovery = SchedulerFailureRecovery(runtime)
+    station = StationRuntime(runtime, recovery=recovery)
+
+    app.state.station_runtime = station
+    station.start()
+
+    try:
+        yield
+    finally:
+        station.stop()
+        history.shutdown()
+        engine.shutdown()
 
 
-app = FastAPI(title="Music Library / Playout Backend")
+app = FastAPI(title="Music Library / Playout Backend", lifespan=lifespan)
 
 
 @app.get("/api/health")
@@ -52,26 +83,12 @@ def health_check() -> dict:
 
 
 app.include_router(library_router)
+app.include_router(live_router)
+app.include_router(live_assist_router)
 app.include_router(playback_router)
 app.include_router(playlists_router)
 app.include_router(queue_router)
 app.include_router(assets_router)
+app.include_router(asset_upload_router)
 app.include_router(scheduler_router)
-
-
-@app.on_event("startup")
-def _on_startup() -> None:
-    init_db()
-
-    # Register asset playback listener BEFORE QueueManager.
-    # This guarantees asset completion is recorded before the queue
-    # reacts to the same AudioEngine completion event.
-    get_asset_playback_manager()
-
-    get_queue_manager()
-
-@app.on_event("shutdown")
-def _on_shutdown() -> None:
-    from .api.engine_provider import get_engine
-
-    get_engine().shutdown()
+app.include_router(reports_router)
