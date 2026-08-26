@@ -76,5 +76,4 @@ Project Lead:
 Altamash
 
 ## Status
-
-🚧 Under Development
+completed 
