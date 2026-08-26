@@ -1,91 +1,46 @@
-import React, { useCallback, useState } from "react";
-import LiveMonitor from "./components/LiveMonitor.jsx";
-import LiveAssist from "./components/LiveAssist.jsx";
-import ReportsPanel from "./components/ReportsPanel.jsx";
-import MusicLibrary from "./components/MusicLibrary.jsx";
-import PlaylistsPanel from "./components/PlaylistsPanel.jsx";
-import QueuePanel from "./components/QueuePanel.jsx";
-import { api } from "./api.js";
+import { useState } from 'react';
+import Sidebar from './components/layout/Sidebar';
+import TopBar from './components/layout/TopBar';
+import StatusBar from './components/layout/StatusBar';
+import Dashboard from './pages/Dashboard';
+import MusicLibrary from './pages/MusicLibrary';
+import Playlists from './pages/Playlists';
+import Jingles from './pages/Jingles';
+import Advertisements from './pages/Advertisements';
+import Scheduler from './pages/Scheduler';
+import Logs from './pages/Logs';
+import Settings from './pages/Settings';
+import usePlayerState from './hooks/usePlayerState';
+import './App.css';
 
-const TABS = [
-  { key: "live", label: "Live Monitor" },
-  { key: "assist", label: "Live Assist" },
-  { key: "reports", label: "Reports & History" },
-  { key: "library", label: "Music Library" },
-  { key: "playlists", label: "Playlists" },
-  { key: "queue", label: "Queue" },
-];
+const PAGES = {
+  dashboard: Dashboard,
+  library: MusicLibrary,
+  playlists: Playlists,
+  jingles: Jingles,
+  advertisements: Advertisements,
+  scheduler: Scheduler,
+  logs: Logs,
+  settings: Settings,
+};
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("live");
-  const [selectedLibrarySong, setSelectedLibrarySong] = useState(null);
-  const [nowPlaying, setNowPlaying] = useState({ song: null, state: "stopped" });
-  const [queueVersion, setQueueVersion] = useState(0);
+  const [activePage, setActivePage] = useState('dashboard');
+  const player = usePlayerState();
+  const onAir = String(player.station?.mode || '').toUpperCase() === 'ON_AIR';
 
-  const bumpQueueVersion = useCallback(() => setQueueVersion((v) => v + 1), []);
-
-  const playSongNow = useCallback(async (song) => {
-    const status = await api.playSong(song.id);
-    setNowPlaying({ song, state: (status.state || "playing").toLowerCase() });
-  }, []);
+  const ActivePageComponent = PAGES[activePage] ?? Dashboard;
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="app-header__brand">
-          <span className="app-header__mark">●</span>
-          <div>
-            <h1>Super Station Studio</h1>
-            <span className="app-header__subtitle">Broadcast control &amp; playout</span>
-          </div>
-        </div>
-        <span className="app-header__badge">V0.8 · LIVE ASSIST &amp; REPORTS</span>
-      </header>
-
-      <nav className="tabs" aria-label="Main navigation">
-        {TABS.map((tab) => (
-          <button
-            type="button"
-            key={tab.key}
-            className={`tab-button ${activeTab === tab.key ? "is-active" : ""}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      {activeTab === "live" && <LiveMonitor />}
-      {activeTab === "assist" && <LiveAssist />}
-      {activeTab === "reports" && <ReportsPanel />}
-
-      <div style={{ display: activeTab === "library" ? "block" : "none" }}>
-        <MusicLibrary
-          selectedId={selectedLibrarySong?.id ?? null}
-          onSelectSong={setSelectedLibrarySong}
-          nowPlaying={nowPlaying}
-          setNowPlaying={setNowPlaying}
-        />
+    <div className="app">
+      <Sidebar activePage={activePage} onNavigate={setActivePage} />
+      <div className="app__content">
+        <TopBar onAir={onAir} onNavigate={setActivePage} />
+        <main className="app__main">
+          <ActivePageComponent player={player} />
+        </main>
+        <StatusBar player={player} />
       </div>
-
-      {activeTab === "playlists" && (
-        <PlaylistsPanel
-          selectedLibrarySong={selectedLibrarySong}
-          playSongNow={playSongNow}
-          bumpQueueVersion={bumpQueueVersion}
-          onWentToQueue={() => setActiveTab("queue")}
-        />
-      )}
-
-      {activeTab === "queue" && (
-        <QueuePanel
-          nowPlaying={nowPlaying}
-          setNowPlaying={setNowPlaying}
-          playSongNow={playSongNow}
-          queueVersion={queueVersion}
-          bumpQueueVersion={bumpQueueVersion}
-        />
-      )}
     </div>
   );
 }

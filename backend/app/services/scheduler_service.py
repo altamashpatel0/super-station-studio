@@ -50,8 +50,32 @@ def _validate_window(start_time: str, end_time: str) -> None:
         raise InvalidScheduleError("end_time must be later than start_time.")
 
 
+def _validate_date_window(start_date: str | None, end_date: str | None) -> None:
+    if start_date is None and end_date is None:
+        return
+    if start_date is None or end_date is None:
+        raise InvalidScheduleError("start_date and end_date must be provided together.")
+    from datetime import date
+    import calendar
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise InvalidScheduleError("Dates must use YYYY-MM-DD format.") from exc
+    if end < start:
+        raise InvalidScheduleError("end_date must be on or after start_date.")
+    month_index = start.month - 1 + 6
+    year = start.year + month_index // 12
+    month = month_index % 12 + 1
+    max_day = min(start.day, calendar.monthrange(year, month)[1])
+    max_end = date(year, month, max_day)
+    if end > max_end:
+        raise InvalidScheduleError("Schedule range cannot exceed 6 calendar months.")
+
+
 def create_schedule(db: Session, request: ScheduleCreate) -> Schedule:
     _validate_window(request.start_time, request.end_time)
+    _validate_date_window(request.start_date, request.end_date)
     _validate_target(db, request.target_type, request.target_id)
     schedule = ScheduleRepository(db).create({
         "name": request.name.strip(),
@@ -59,6 +83,8 @@ def create_schedule(db: Session, request: ScheduleCreate) -> Schedule:
         "target_id": request.target_id,
         "start_time": request.start_time,
         "end_time": request.end_time,
+        "start_date": request.start_date,
+        "end_date": request.end_date,
         "days_of_week": _canonical_days(request.days_of_week),
         "enabled": request.enabled,
     })
@@ -102,8 +128,11 @@ def update_schedule(
     target_id = values.get("target_id", current.target_id)
     start_time = values.get("start_time", current.start_time)
     end_time = values.get("end_time", current.end_time)
+    start_date = values.get("start_date", current.start_date)
+    end_date = values.get("end_date", current.end_date)
 
     _validate_window(start_time, end_time)
+    _validate_date_window(start_date, end_date)
     _validate_target(db, target_type, target_id)
 
     if "days_of_week" in values:

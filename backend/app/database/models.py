@@ -396,6 +396,12 @@ class Schedule(Base):
     start_time: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
     end_time: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
 
+    # Optional calendar bounds.  When present, a schedule may repeat only
+    # between these dates (inclusive).  The API enforces a maximum span of
+    # six calendar months.  NULL keeps legacy schedules valid indefinitely.
+    start_date: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    end_date: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+
     # Canonical form: ",0,2,4," where 0=Monday ... 6=Sunday.
     days_of_week: Mapped[str] = mapped_column(
         String,
@@ -437,6 +443,8 @@ class Schedule(Base):
             "target_id": self.target_id,
             "start_time": self.start_time,
             "end_time": self.end_time,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
             "days_of_week": self.day_list(),
             "enabled": self.enabled,
             "created_at": self.created_at.isoformat() if self.created_at else None,

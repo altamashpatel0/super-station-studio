@@ -1,0 +1,83 @@
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.volume__icon-btn {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  transition: color 0.15s ease;
+}
+
+.volume__icon-btn:hover {
+  color: var(--text-primary);
+}
+
+.volume__slider-wrap {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.volume__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hairline-bright);
+  overflow: hidden;
+}
+
+.volume__fill {
+  height: 100%;
+  background: var(--accent-blue);
+  transition: width 0.08s linear;
+}
+
+.volume__input {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.volume__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--accent-blue);
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.volume__input::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--accent-blue);
+  cursor: pointer;
+}
+
+.volume__input::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.volume__value {
+  width: 26px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: right;
+}

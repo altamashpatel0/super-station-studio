@@ -1,0 +1,94 @@
+.queueitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.queueitem:hover {
+  background: var(--panel-raised);
+  border-color: var(--hairline-bright);
+}
+
+.queueitem--next {
+  background: var(--panel-inset);
+  border-color: var(--hairline-bright);
+}
+
+.queueitem__position {
+  font-size: 10.5px;
+  color: var(--text-disabled);
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.queueitem__type-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.queueitem__type-icon--song { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.queueitem__type-icon--jingle { background: var(--signal-green-dim); color: var(--signal-green); }
+.queueitem__type-icon--ad { background: var(--amber-dim); color: var(--amber); }
+.queueitem__type-icon--stationid { background: var(--air-red-dim); color: var(--air-red); }
+
+.queueitem__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.queueitem__title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queueitem__sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queueitem__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.queueitem__badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.queueitem__badge--song { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.queueitem__badge--jingle { background: var(--signal-green-dim); color: var(--signal-green); }
+.queueitem__badge--ad { background: var(--amber-dim); color: var(--amber); }
+.queueitem__badge--stationid { background: var(--air-red-dim); color: var(--air-red); }
+
+.queueitem__duration {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}

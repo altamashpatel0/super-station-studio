@@ -46,11 +46,20 @@ class PlaybackHistory(Base):
         Index("ix_playback_history_started_status", "started_at", "status"),
     )
 
+    @staticmethod
+    def _utc_iso(value: datetime.datetime | None) -> str | None:
+        if value is None:
+            return None
+        # Database timestamps are stored as UTC-naive datetimes. Make the
+        # timezone explicit at the API boundary so clients cannot interpret
+        # them as local time accidentally.
+        return value.replace(tzinfo=datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
+            "started_at": self._utc_iso(self.started_at),
+            "ended_at": self._utc_iso(self.ended_at),
             "content_type": self.content_type,
             "content_id": self.content_id,
             "content_name": self.content_name,

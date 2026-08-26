@@ -1,0 +1,14 @@
+.dashboard {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}

@@ -1,0 +1,135 @@
+.pageshell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pageshell__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px 40px;
+}
+
+/* ---- Data table ---- */
+.datatable {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.datatable thead {
+  background: var(--panel-inset);
+}
+
+.datatable th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.datatable td {
+  padding: 11px 16px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.datatable tbody tr {
+  transition: background 0.12s ease;
+}
+
+.datatable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.datatable tbody tr:hover {
+  background: var(--panel-inset);
+}
+
+.datatable td.strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.badge--active { background: var(--signal-green-dim); color: var(--signal-green); }
+.badge--paused { background: var(--amber-dim); color: var(--amber); }
+.badge--scheduled { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.badge--info { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.badge--warning { background: var(--amber-dim); color: var(--amber); }
+.badge--error { background: var(--air-red-dim); color: var(--air-red); }
+
+/* ---- Card grid ---- */
+.cardgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.contentcard {
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+  cursor: pointer;
+}
+
+.contentcard:hover {
+  border-color: var(--hairline-bright);
+  transform: translateY(-1px);
+}
+
+.contentcard__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--text-primary);
+}
+
+.contentcard__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Stat row ---- */
+.statrow {
+  display: flex;
+  gap: 12px;
+  padding: 20px 32px 0;
+  flex-wrap: wrap;
+}
+
+/* ---- Section title ---- */
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin: 22px 0 10px;
+}

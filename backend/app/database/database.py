@@ -25,6 +25,7 @@ from .migrations.add_asset_priority_cooldown import (
     upgrade_asset_priority_cooldown,
 )
 from .migrations.add_playback_history import upgrade_playback_history
+from .migrations.add_schedule_date_range import upgrade_schedule_date_range
 from . import playback_history_models  # noqa: F401
 
 DEFAULT_DB_PATH = os.path.join(
@@ -78,6 +79,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     upgrade_asset_priority_cooldown(engine)
     upgrade_playback_history(engine)
+    upgrade_schedule_date_range(engine)
 
 
 def reset_engine(db_url: str) -> None:

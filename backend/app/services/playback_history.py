@@ -24,6 +24,18 @@ from ..database.models import Asset, Song
 from ..database.playback_history_models import PlaybackHistory
 
 
+def _local_day_bounds_as_utc_naive(date: datetime.date) -> tuple[datetime.datetime, datetime.datetime]:
+    """Convert the operator's local calendar day into UTC-naive DB bounds."""
+    local_tz = datetime.datetime.now().astimezone().tzinfo
+    local_start = datetime.datetime.combine(date, datetime.time.min, tzinfo=local_tz)
+    local_end = local_start + datetime.timedelta(days=1)
+    utc = datetime.timezone.utc
+    return (
+        local_start.astimezone(utc).replace(tzinfo=None),
+        local_end.astimezone(utc).replace(tzinfo=None),
+    )
+
+
 class PlaybackHistoryRecorder:
     def __init__(self, engine: AudioEngine) -> None:
         self._engine = engine
@@ -34,7 +46,82 @@ class PlaybackHistoryRecorder:
 
         self._engine.on_state_change(self._on_state_change)
         self._engine.on_track_end(self._on_track_end)
+        self._reconcile_open_rows()
         self._running = True
+
+    def _reconcile_open_rows(self) -> None:
+        """Close stale PLAYING rows left behind by an earlier process run.
+
+        The AudioEngine is created fresh when FastAPI starts, so a persisted
+        PLAYING row from a previous process cannot still represent live audio.
+        Treat it as skipped rather than leaving a permanent PLAYING entry.
+        """
+        now = datetime.datetime.utcnow()
+        try:
+            with session_scope() as db:
+                rows = list(
+                    db.execute(
+                        select(PlaybackHistory).where(PlaybackHistory.status == "PLAYING")
+                    ).scalars()
+                )
+                for row in rows:
+                    row.ended_at = now
+                    row.status = "SKIPPED"
+                    row.error_message = "Playback session ended when the station backend restarted."
+                    if row.started_at:
+                        elapsed = max(0.0, (now - row.started_at).total_seconds())
+                        if row.duration_seconds > 0:
+                            row.duration_seconds = min(float(row.duration_seconds), elapsed)
+                        else:
+                            row.duration_seconds = elapsed
+        except Exception:
+            # History cleanup must never prevent the station from starting.
+            return
+
+    def _finish_history_row(
+        self,
+        history_id: int,
+        final_status: str,
+        now: datetime.datetime,
+        error: Optional[str] = None,
+    ) -> None:
+        """Persist the terminal state and the actual elapsed play time."""
+        with session_scope() as db:
+            row = db.get(PlaybackHistory, history_id)
+            if row is None:
+                return
+            row.ended_at = now
+            row.status = final_status
+            row.error_message = error
+            if row.started_at:
+                elapsed = max(0.0, (now - row.started_at).total_seconds())
+                if final_status in {"SKIPPED", "FAILED"}:
+                    row.duration_seconds = elapsed
+                elif row.duration_seconds <= 0:
+                    row.duration_seconds = elapsed
+                else:
+                    row.duration_seconds = min(float(row.duration_seconds), elapsed)
+
+    def _close_active_as_replaced(self, now: datetime.datetime, reason: str) -> None:
+        """Close the current history row when another file replaces it.
+
+        `AudioEngine.load_track()` stops the underlying output before loading
+        the next file, but the V0.1 engine deliberately does not emit a
+        MANUAL_STOP event for that replacement. This is the exact path that
+        previously left skipped tracks stuck at PLAYING in Reports & Logs.
+        """
+        with self._lock:
+            history_id = self._active_history_id
+            self._active_history_id = None
+            self._active_file_path = None
+
+        if history_id is None:
+            return
+
+        try:
+            self._finish_history_row(history_id, "SKIPPED", now, reason)
+        except Exception:
+            return
 
     @property
     def running(self) -> bool:
@@ -79,19 +166,44 @@ class PlaybackHistoryRecorder:
 
     def _on_state_change(self, old_state: PlayerState, new_state: PlayerState) -> None:
         with self._lock:
-            if not self._running or new_state != PlayerState.PLAYING:
+            if not self._running:
                 return
+
+        # Replacing a playing file with load_track() transitions the engine
+        # PLAYING -> LOADING without emitting on_track_end(). Close that
+        # history row explicitly so manual Next/Skip and asset/song switches
+        # are recorded as SKIPPED instead of remaining PLAYING forever.
+        if old_state == PlayerState.PLAYING and new_state in {PlayerState.LOADING, PlayerState.ERROR}:
+            self._close_active_as_replaced(
+                datetime.datetime.utcnow(),
+                "Playback was replaced before the item completed.",
+            )
+
+        if new_state != PlayerState.PLAYING:
+            return
 
         status = self._engine.get_status()
         file_path = status.file_path
         if not file_path:
             return
 
+        now = datetime.datetime.utcnow()
+
+        with self._lock:
+            active_id = self._active_history_id
+            active_path = self._active_file_path
+
+        # Defensive guard for engines/callers that change files without the
+        # intermediate state callback reaching us.
+        if active_id is not None and active_path != file_path:
+            self._close_active_as_replaced(
+                now,
+                "Playback was replaced before the item completed.",
+            )
+
         with self._lock:
             if self._active_history_id is not None and self._active_file_path == file_path:
                 return
-
-        now = datetime.datetime.utcnow()
 
         try:
             with session_scope() as db:
@@ -130,20 +242,16 @@ class PlaybackHistoryRecorder:
         now = datetime.datetime.utcnow()
         if reason == TrackEndReason.COMPLETED:
             final_status = "COMPLETED"
+            error = None
         elif reason == TrackEndReason.MANUAL_STOP:
             final_status = "SKIPPED"
+            error = None
         else:
             final_status = "FAILED"
-
-        error = None if final_status != "FAILED" else "AudioEngine playback error"
+            error = "AudioEngine playback error"
 
         try:
-            with session_scope() as db:
-                row = db.get(PlaybackHistory, history_id)
-                if row is not None:
-                    row.ended_at = now
-                    row.status = final_status
-                    row.error_message = error
+            self._finish_history_row(history_id, final_status, now, error)
         except Exception:
             return
 
@@ -159,8 +267,7 @@ def list_history(
 ) -> list[PlaybackHistory]:
     stmt = select(PlaybackHistory).order_by(PlaybackHistory.started_at.desc())
     if date is not None:
-        start = datetime.datetime.combine(date, datetime.time.min)
-        end = start + datetime.timedelta(days=1)
+        start, end = _local_day_bounds_as_utc_naive(date)
         stmt = stmt.where(
             PlaybackHistory.started_at >= start,
             PlaybackHistory.started_at < end,

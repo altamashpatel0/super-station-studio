@@ -1,0 +1,49 @@
+:root {
+  /* ---- Surface ---- */
+  --void: #0a0c0f;
+  --panel: #14171c;
+  --panel-raised: #1b1f26;
+  --panel-inset: #0e1013;
+  --hairline: #262b33;
+  --hairline-bright: #363c46;
+
+  /* ---- Text ---- */
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa1ad;
+  --text-tertiary: #5c636f;
+  --text-disabled: #3a3f48;
+
+  /* ---- Signal colors ---- */
+  --air-red: #ff3b30;
+  --air-red-dim: #4a1512;
+  --signal-green: #00d68f;
+  --signal-green-dim: #0a3d2c;
+  --accent-blue: #3b82f6;
+  --accent-blue-dim: #0f2340;
+  --amber: #f5a623;
+  --amber-dim: #3d2a0a;
+
+  /* ---- Meter gradient ---- */
+  --meter-low: #00d68f;
+  --meter-mid: #f5a623;
+  --meter-hot: #ff3b30;
+
+  /* ---- Type ---- */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* ---- Radius ---- */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+
+  /* ---- Shadow ---- */
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* ---- Layout ---- */
+  --sidebar-w: 232px;
+  --topbar-h: 60px;
+  --statusbar-h: 32px;
+}

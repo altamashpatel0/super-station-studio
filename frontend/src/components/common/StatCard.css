@@ -1,0 +1,33 @@
+.statcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  min-width: 140px;
+}
+
+.statcard__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.statcard__value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.statcard--accent .statcard__value { color: var(--accent-blue); }
+.statcard--ok .statcard__value { color: var(--signal-green); }
+.statcard--warn .statcard__value { color: var(--amber); }
+.statcard--live .statcard__value { color: var(--air-red); }
+
+.statcard__sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}

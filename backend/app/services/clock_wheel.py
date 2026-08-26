@@ -88,6 +88,11 @@ class ClockWheel:
         if occurrence_date.weekday() not in _schedule_days(schedule):
             return None
 
+        if schedule.start_date and occurrence_date.isoformat() < schedule.start_date:
+            return None
+        if schedule.end_date and occurrence_date.isoformat() > schedule.end_date:
+            return None
+
         return ScheduleOccurrence.from_schedule(
             schedule,
             occurrence_date,

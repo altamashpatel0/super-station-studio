@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -31,6 +32,41 @@ def _validate_days(value: list[int]) -> list[int]:
     return sorted(value)
 
 
+def _validate_date(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("date must use YYYY-MM-DD format")
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("date must use YYYY-MM-DD format") from exc
+    if len(value) != 10:
+        raise ValueError("date must use YYYY-MM-DD format")
+    return value
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    import calendar
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _validate_date_window(start_date: Optional[str], end_date: Optional[str]) -> None:
+    if start_date is None and end_date is None:
+        return
+    if start_date is None or end_date is None:
+        raise ValueError("start_date and end_date must be provided together")
+    start = date.fromisoformat(start_date)
+    end = date.fromisoformat(end_date)
+    if end < start:
+        raise ValueError("end_date must be on or after start_date")
+    if end > _add_months(start, 6):
+        raise ValueError("schedule range cannot exceed 6 calendar months")
+
+
+
 class ScheduleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     target_type: str
@@ -38,6 +74,8 @@ class ScheduleCreate(BaseModel):
     start_time: str
     end_time: str
     days_of_week: list[int] = Field(..., min_length=1, max_length=7)
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     enabled: bool = True
 
     @field_validator("target_type")
@@ -55,6 +93,11 @@ class ScheduleCreate(BaseModel):
     def validate_time(cls, value: str) -> str:
         return _validate_hhmm(value)
 
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_date(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else _validate_date(value)
+
     @field_validator("days_of_week")
     @classmethod
     def validate_days_of_week(cls, value: list[int]) -> list[int]:
@@ -64,6 +107,7 @@ class ScheduleCreate(BaseModel):
     def validate_window(self):
         if self.end_time <= self.start_time:
             raise ValueError("end_time must be later than start_time")
+        _validate_date_window(self.start_date, self.end_date)
         return self
 
 
@@ -73,6 +117,8 @@ class ScheduleUpdate(BaseModel):
     target_id: Optional[int] = Field(None, gt=0)
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     days_of_week: Optional[list[int]] = Field(None, min_length=1, max_length=7)
     enabled: Optional[bool] = None
 
@@ -92,6 +138,11 @@ class ScheduleUpdate(BaseModel):
     @classmethod
     def validate_time(cls, value: Optional[str]) -> Optional[str]:
         return None if value is None else _validate_hhmm(value)
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_date(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else _validate_date(value)
 
     @field_validator("days_of_week")
     @classmethod
@@ -114,6 +165,8 @@ class ScheduleOut(BaseModel):
     start_time: str
     end_time: str
     days_of_week: list[int]
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     enabled: bool
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

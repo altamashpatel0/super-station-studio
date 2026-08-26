@@ -1,0 +1,40 @@
+.statusbar {
+  height: var(--statusbar-h);
+  min-height: var(--statusbar-h);
+  background: var(--panel-inset);
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.statusbar__group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+}
+
+.statusbar__item strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.statusbar__icon--ok {
+  color: var(--signal-green);
+}
+
+.statusbar__sep {
+  width: 1px;
+  height: 12px;
+  background: var(--hairline);
+}

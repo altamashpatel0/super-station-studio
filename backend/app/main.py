@@ -1,19 +1,11 @@
 """
 app/main.py
 ===========
-
 FastAPI application entrypoint and V0.7 station lifecycle wiring.
 
-The application keeps the existing shared AudioEngine/QueueManager ownership.
-V0.7 Part 5 adds one StationRuntime lifecycle owner for:
-    SchedulerRuntime
-    SchedulerFailureRecovery
-    PlaybackContinuation
-    AutomationWorker
-    PlaybackWatchdog
-
-The StationRuntime is started after the existing playback/queue listeners have
-been registered and is stopped before the AudioEngine is shut down.
+V0.8 fix:
+- Registers the browser folder-import router so
+  POST /api/library/import-files is actually available.
 """
 
 from __future__ import annotations
@@ -21,10 +13,12 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .api.assets import router as assets_router
 from .api.asset_upload import router as asset_upload_router
 from .api.library import router as library_router
+from .api.library_import import router as library_import_router
 from .api.live import router as live_router
 from .api.live_assist import router as live_assist_router
 from .api.playback import router as playback_router
@@ -75,6 +69,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Music Library / Playout Backend", lifespan=lifespan)
 
+# Local Studio frontend runs on Vite (5173) while FastAPI runs on 8000.
+# Keep CORS enabled for direct frontend->backend development as well as the
+# Vite proxy path. No credentials/cookies are used by this local app.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/api/health")
 def health_check() -> dict:
@@ -82,7 +90,14 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+# Core application routers
 app.include_router(library_router)
+
+# V0.8 browser folder-import bridge.
+# This is intentionally separate from the server-side /library/scan route:
+# browsers cannot expose the real local Windows folder path to JavaScript.
+app.include_router(library_import_router)
+
 app.include_router(live_router)
 app.include_router(live_assist_router)
 app.include_router(playback_router)
