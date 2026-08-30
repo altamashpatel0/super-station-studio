@@ -74,6 +74,8 @@ function targetName(item, type) {
 
 export default function Scheduler() {
   const [schedules, setSchedules] = useState([]);
+  const [runtime, setRuntime] = useState(null);
+  const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [songs, setSongs] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [ads, setAds] = useState([]);
@@ -115,14 +117,16 @@ export default function Scheduler() {
     setLoading(true);
     setError('');
     try {
-      const [scheduleRows, songRows, playlistRows, adRows, jingleRows] = await Promise.all([
+      const [scheduleRows, runtimeStatus, songRows, playlistRows, adRows, jingleRows] = await Promise.all([
         api.listSchedules(),
+        api.getSchedulerRuntimeStatus(),
         api.listSongs({ limit: 1000 }),
         api.listPlaylists(),
         api.listAssets({ asset_type: 'ADVERTISEMENT' }),
         api.listAssets({ asset_type: 'JINGLE' }),
       ]);
       setSchedules(scheduleRows || []);
+      setRuntime(runtimeStatus || null);
       setSongs(songRows || []);
       setPlaylists(playlistRows || []);
       setAds(adRows || []);
@@ -135,6 +139,24 @@ export default function Scheduler() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshRuntime = async () => {
+      try {
+        const status = await api.getSchedulerRuntimeStatus();
+        if (active) setRuntime(status);
+      } catch {
+        // The main page load already surfaces connectivity errors. Runtime
+        // polling stays quiet so a transient request does not replace them.
+      }
+    };
+    const timer = window.setInterval(refreshRuntime, 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   function resetForm() {
     const start = todayISO();
@@ -222,6 +244,19 @@ export default function Scheduler() {
     }
   }
 
+  async function runAutomationTick() {
+    setRuntimeBusy(true);
+    setError('');
+    try {
+      await api.runSchedulerTick();
+      setRuntime(await api.getSchedulerRuntimeStatus());
+    } catch (e) {
+      setError(e.message || 'Scheduler tick failed.');
+    } finally {
+      setRuntimeBusy(false);
+    }
+  }
+
   async function toggleSchedule(schedule) {
     try {
       if (schedule.enabled) await api.disableSchedule(schedule.id);
@@ -258,6 +293,13 @@ export default function Scheduler() {
           <div><CalendarClock size={18} /><span><strong>{schedules.length}</strong> schedules</span></div>
           <div><Clock3 size={18} /><span><strong>{schedules.filter((x) => x.enabled).length}</strong> active</span></div>
           <div className="range-note"><span>Maximum range: <strong>6 calendar months</strong></span></div>
+        </div>
+
+        <div className="scheduler-runtime-card">
+          <div><span className="scheduler-runtime-label">AUTOMATION</span><strong>{runtime?.automation_running ? 'RUNNING' : 'STOPPED'}</strong></div>
+          <div><span className="scheduler-runtime-label">TICKS</span><strong>{runtime?.tick_count ?? 0}</strong></div>
+          <div><span className="scheduler-runtime-label">LAST EVENT</span><strong>{runtime?.last_selection?.selected_kind || '—'}</strong></div>
+          <Button variant="secondary" icon={RefreshCw} onClick={runAutomationTick} disabled={runtimeBusy}>{runtimeBusy ? 'Running…' : 'Run Tick'}</Button>
         </div>
 
         <div className="schedule-list">

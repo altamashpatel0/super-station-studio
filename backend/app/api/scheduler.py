@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database.database import get_db
@@ -15,6 +15,41 @@ from ..services.scheduler_selection import SelectionError, select_for_schedule
 from ..services.scheduler_service import InvalidScheduleError
 
 router = APIRouter(prefix="/api/schedules", tags=["scheduler"])
+
+
+@router.get("/runtime/status")
+def runtime_status(request: Request):
+    """Return deterministic automation lifecycle status for the operator UI."""
+    station = getattr(request.app.state, "station_runtime", None)
+    if station is None:
+        raise HTTPException(status_code=503, detail="Station runtime is not available.")
+    runtime = station.runtime
+    worker = station.worker
+    selection = runtime.get_last_selection()
+    now = datetime.now()
+    current = ClockWheel(db=None) if False else None  # keep this endpoint DB-free
+    return {
+        "station_running": station.is_running,
+        "automation_running": worker.is_running,
+        "tick_count": worker.tick_count,
+        "last_error": runtime.get_last_error(),
+        "worker_last_error": worker.last_error,
+        "last_selection": selection.to_dict() if selection else None,
+        "checked_at": now.isoformat(),
+    }
+
+
+@router.post("/runtime/tick")
+def runtime_tick(request: Request):
+    """Run exactly one automation tick for deterministic operator testing."""
+    station = getattr(request.app.state, "station_runtime", None)
+    if station is None:
+        raise HTTPException(status_code=503, detail="Station runtime is not available.")
+    try:
+        result = station.worker.run_once()
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"selection": result.to_dict() if hasattr(result, "to_dict") else result}
 
 
 def _parse_at(value: Optional[str]) -> datetime:

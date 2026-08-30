@@ -26,6 +26,8 @@ from ..database.database import get_db
 from ..database.repositories.song_repository import SongRepository
 from ..schemas.library import PlayRequest
 from .engine_provider import get_engine
+from .playback_controller_provider import get_playback_controller
+from ..services.playback_controller import PlaybackControllerError, PlaybackSource
 
 router = APIRouter(prefix="/api/playback", tags=["playback"])
 
@@ -40,11 +42,13 @@ def play_song(request: PlayRequest, db: Session = Depends(get_db)):
     if not song.enabled:
         raise HTTPException(status_code=409, detail="This track is marked unavailable (file missing).")
 
-    engine = get_engine()
+    controller = get_playback_controller()
     try:
-        engine.load_track(song.file_path)
-        status = engine.play()
-    except AudioEngineError as exc:
+        status = controller.start_track(
+            PlaybackSource.MANUAL,
+            song.file_path,
+        )
+    except (AudioEngineError, PlaybackControllerError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     repo.record_play(song.id)
@@ -55,7 +59,7 @@ def play_song(request: PlayRequest, db: Session = Depends(get_db)):
 @router.post("/pause")
 def pause():
     try:
-        return get_engine().pause().to_dict()
+        return get_playback_controller().engine.pause().to_dict()
     except AudioEngineError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -63,7 +67,7 @@ def pause():
 @router.post("/resume")
 def resume():
     try:
-        return get_engine().resume().to_dict()
+        return get_playback_controller().engine.resume().to_dict()
     except AudioEngineError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -71,11 +75,13 @@ def resume():
 @router.post("/stop")
 def stop():
     try:
-        return get_engine().stop().to_dict()
+        return get_playback_controller().stop(PlaybackSource.MANUAL).to_dict()
+    except PlaybackControllerError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AudioEngineError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/status")
 def status():
-    return get_engine().get_status().to_dict()
+    return get_playback_controller().get_status()

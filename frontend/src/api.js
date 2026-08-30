@@ -69,6 +69,8 @@ export const api = {
 
   getStats: () => request("/library/stats"),
 
+  getSongArtworkUrl: (songId) => `${BASE}/library/songs/${encodeURIComponent(songId)}/artwork`,
+
   deleteSong: (id) =>
     request(`/library/songs/${id}`, { method: "DELETE" }),
 
@@ -295,6 +297,12 @@ export const api = {
   selectScheduleTarget: (id, at) =>
     request(`/schedules/${id}/select${at ? `?at=${encodeURIComponent(at)}` : ""}`),
 
+  getSchedulerRuntimeStatus: () =>
+    request("/schedules/runtime/status"),
+
+  runSchedulerTick: () =>
+    request("/schedules/runtime/tick", { method: "POST" }),
+
   // -----------------------------------------------------------------------
   // Reports / logs
   // -----------------------------------------------------------------------
@@ -308,6 +316,9 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/reports/summary${qs ? `?${qs}` : ""}`);
   },
+
+  getRecentlyPlayed: (limit = 6) =>
+    request(`/reports/recently-played?limit=${encodeURIComponent(limit)}`),
 
   // -----------------------------------------------------------------------
   // Queue

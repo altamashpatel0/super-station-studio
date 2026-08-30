@@ -20,7 +20,7 @@ export default function StatusBar({ player }) {
       <div className="statusbar__group">
         <span className="statusbar__item mono">QUEUE {player?.queue?.length ?? 0}</span>
         <span className="statusbar__sep" />
-        <span className="statusbar__item mono">VOL {Math.round((player?.volume ?? 1) * 100)}%</span>
+        <span className="statusbar__item mono">VOL {Math.round(player?.volume ?? 100)}%</span>
       </div>
     </footer>
   );

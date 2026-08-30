@@ -76,7 +76,7 @@ def _safe_relative_path(value: str) -> Path:
 @router.post("/import-files")
 async def import_music_files(
     files: list[UploadFile] = File(...),
-    relative_paths: list[str] = Form(...),
+    relative_paths: list[str] = Form(default=[]),
 ):
     """
     Receive browser-selected music files and import them into the library.
@@ -87,11 +87,17 @@ async def import_music_files(
             detail="No music files were selected.",
         )
 
-    if len(files) != len(relative_paths):
+    # `relative_paths` is optional for simple/multipart clients and tests.
+    # When omitted, fall back to each uploaded file's filename. Browser clients
+    # can still provide full relative folder paths when available.
+    if relative_paths and len(files) != len(relative_paths):
         raise HTTPException(
             status_code=400,
             detail="Music file/path payload is inconsistent.",
         )
+
+    if not relative_paths:
+        relative_paths = [upload.filename or "" for upload in files]
 
     IMPORTED_MUSIC_ROOT.mkdir(parents=True, exist_ok=True)
 

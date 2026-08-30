@@ -36,6 +36,7 @@ from ..database.repositories.queue_repository import (
 )
 from ..schemas.queue import AddQueueItemRequest, QueueItemOut, ReorderQueueRequest
 from ..services.queue_manager import QueueEmptyError, QueueItemNotQueuedError
+from ..services.playback_controller import PlaybackControllerError
 from .queue_manager_provider import get_queue_manager
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
@@ -182,5 +183,8 @@ def play_queue(queue_item_id: int | None = None, db: Session = Depends(get_db)):
     except QueueItemNotQueuedError as exc:
         db.commit()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PlaybackControllerError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     db.commit()
     return status

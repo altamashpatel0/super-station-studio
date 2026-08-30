@@ -26,6 +26,7 @@ from .api.playlists import router as playlists_router
 from .api.reports import router as reports_router
 from .api.queue import router as queue_router
 from .api.queue_manager_provider import get_queue_manager
+from .api.playback_controller_provider import get_playback_controller
 from .api.scheduler import router as scheduler_router
 from .api.asset_playback_provider import get_asset_playback_manager
 from .api.engine_provider import get_engine
@@ -40,19 +41,28 @@ from .services.station_runtime import StationRuntime
 async def lifespan(app: FastAPI):
     init_db()
 
-    # Register history before QueueManager so the original track is captured
-    # before QueueManager can auto-start the next track on completion.
-    get_asset_playback_manager()
-
+    # Construct the central playback authority first. Every production
+    # playback service below must use this controller instead of competing
+    # directly for the shared AudioEngine.
     engine = get_engine()
+    controller = get_playback_controller()
+
+    # Register asset playback after the controller exists so asset starts can
+    # also be routed through the same playback authority.
+    get_asset_playback_manager()
     history = PlaybackHistoryRecorder(engine)
     app.state.playback_history = history
 
     # Existing queue listener must be installed before station automation starts.
-    get_queue_manager()
+    queue_manager = get_queue_manager()
     asset_manager = get_asset_playback_manager()
 
-    runtime = SchedulerRuntime(engine, asset_manager)
+    runtime = SchedulerRuntime(
+        engine,
+        asset_manager,
+        controller=controller,
+        queue_manager=queue_manager,
+    )
     recovery = SchedulerFailureRecovery(runtime)
     station = StationRuntime(runtime, recovery=recovery)
 

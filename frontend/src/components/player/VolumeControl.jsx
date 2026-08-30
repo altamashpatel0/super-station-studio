@@ -33,7 +33,7 @@ export default function VolumeControl({ volume, onChange }) {
           aria-label="Volume"
         />
       </div>
-      <span className="volume__value mono">{volume}</span>
+      <span className="volume__value mono" aria-live="polite">{Math.round(Number(volume) || 0)}%</span>
     </div>
   );
 }

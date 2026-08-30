@@ -76,7 +76,7 @@
 }
 
 .volume__value {
-  width: 26px;
+  width: 36px;
   font-size: 11px;
   color: var(--text-tertiary);
   text-align: right;

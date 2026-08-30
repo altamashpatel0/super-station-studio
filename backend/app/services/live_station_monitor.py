@@ -28,7 +28,13 @@ class LiveStationMonitor:
     MAX_NEXT_ITEMS = 5
 
     def snapshot(self, db: Session, station_runtime: Any) -> dict:
-        engine_status = station_runtime.runtime.engine.get_status().to_dict()
+        # PlaybackController is the production playback authority. Fall back
+        # to the legacy runtime engine for isolated tests/compatibility.
+        try:
+            from ..api.playback_controller_provider import get_playback_controller
+            engine_status = get_playback_controller().get_status()
+        except Exception:
+            engine_status = station_runtime.runtime.engine.get_status().to_dict()
 
         current = self._resolve_current(
             db,
@@ -77,6 +83,10 @@ class LiveStationMonitor:
 
         return {
             "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            # Authoritative master volume from the same playback controller
+            # used by /api/live-assist/volume. Keep it at the live snapshot
+            # level so the UI does not fall back to 100% on every poll.
+            "volume": round(float(engine_status.get("volume") or 0.0), 3),
             "station": station_status,
             "now_playing": current,
             "next_up": next_items,

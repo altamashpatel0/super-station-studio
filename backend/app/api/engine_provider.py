@@ -45,6 +45,12 @@ def reset_engine(engine: Optional[AudioEngine] = None) -> AudioEngine:
     """
     global _engine
     _engine = engine
+    try:
+        from .playback_controller_provider import reset_playback_controller
+        reset_playback_controller(None)
+    except ImportError:
+        # Keep the low-level engine provider usable in isolated audio-engine tests.
+        pass
     return get_engine()
 
 
@@ -69,3 +75,8 @@ def shutdown_engine() -> None:
     if _engine is not None:
         _engine.shutdown()
     _engine = None
+    try:
+        from .playback_controller_provider import reset_playback_controller
+        reset_playback_controller(None)
+    except ImportError:
+        pass

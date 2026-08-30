@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from src.engine import AudioEngine
 from src.models import AudioEngineError, TrackEndReason
 
+from .playback_controller import PlaybackController, PlaybackSource
+
 from ..database.database import session_scope
 from ..database.models import Asset, AssetPlaybackState
 from ..database.repositories.asset_repository import (
@@ -49,8 +51,13 @@ class AssetPlaybackManager:
     This class does NOT implement a second audio engine.
     """
 
-    def __init__(self, engine: AudioEngine) -> None:
+    def __init__(
+        self,
+        engine: AudioEngine,
+        controller: Optional[PlaybackController] = None,
+    ) -> None:
         self._engine = engine
+        self._controller = controller
 
         self._lock = threading.RLock()
 
@@ -75,6 +82,7 @@ class AssetPlaybackManager:
         self,
         db: Session,
         asset_id: int,
+        source: PlaybackSource = PlaybackSource.ASSET,
     ) -> dict:
 
         asset = AssetRepository(db).get_by_id(asset_id)
@@ -148,13 +156,16 @@ class AssetPlaybackManager:
         # --------------------------------------------------------------
 
         try:
-            self._engine.load_track(
-                asset.file_path
-            )
+            if self._controller is not None:
+                status = self._controller.start_track(
+                    source,
+                    asset.file_path,
+                )
+            else:
+                self._engine.load_track(asset.file_path)
+                status = self._engine.play()
 
-            status = self._engine.play()
-
-        except AudioEngineError as exc:
+        except Exception as exc:
 
             with self._lock:
 

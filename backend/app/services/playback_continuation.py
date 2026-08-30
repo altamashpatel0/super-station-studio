@@ -7,6 +7,7 @@ from typing import Optional
 from src.models import TrackEndReason
 
 from .scheduler_runtime import SchedulerRuntime
+from .playback_controller import PlaybackController, PlaybackSource
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,10 @@ class PlaybackContinuation:
 
     def __init__(self, runtime: SchedulerRuntime) -> None:
         self._runtime = runtime
+        controller = getattr(runtime, "playback_controller", None)
+        self._controller: PlaybackController | None = (
+            controller if isinstance(controller, PlaybackController) else None
+        )
         self._lock = threading.RLock()
         self._running = False
         self._last_reason: Optional[TrackEndReason] = None
@@ -62,7 +67,13 @@ class PlaybackContinuation:
             if self._running:
                 return
 
-            self._runtime.engine.on_track_end(self._on_track_end)
+            if self._controller is not None:
+                self._controller.register_completion_handler(
+                    PlaybackSource.SCHEDULE,
+                    self._on_track_end,
+                )
+            else:
+                self._runtime.engine.on_track_end(self._on_track_end)
             self._running = True
 
     def detach(self) -> None:
@@ -85,6 +96,16 @@ class PlaybackContinuation:
         # MANUAL_STOP and ERROR must remain terminal for the current run.
         if reason != TrackEndReason.COMPLETED:
             return
+
+        # A scheduled playlist is materialized into the runtime queue and
+        # QueueManager advances it track-by-track. Resetting the schedule
+        # occurrence here would restart the playlist from track 1.
+        try:
+            is_playlist_occurrence_active = getattr(self._runtime, "is_playlist_occurrence_active", None)
+            if callable(is_playlist_occurrence_active) and is_playlist_occurrence_active() is True:
+                return
+        except Exception:
+            logger.exception("Failed to inspect scheduler playlist state")
 
         try:
             self._runtime.reset_occurrence()

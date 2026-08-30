@@ -12,6 +12,8 @@ from src.engine import AudioEngine
 from ..database.database import session_scope
 from ..services.asset_playback_manager import AssetPlaybackManager
 from ..services.clock_wheel import ClockWheel
+from .playback_controller import PlaybackController, PlaybackSource
+from .queue_manager import QueueManager
 from ..services.scheduler_selection import (
     SelectionError,
     SelectionResult,
@@ -47,6 +49,8 @@ class SchedulerRuntime:
         self,
         engine: AudioEngine,
         asset_playback_manager: AssetPlaybackManager,
+        controller: PlaybackController | None = None,
+        queue_manager: QueueManager | None = None,
         *,
         session_factory: Callable[[], Session] = session_scope,
         poll_interval_seconds: float = POLL_INTERVAL_SECONDS,
@@ -56,6 +60,13 @@ class SchedulerRuntime:
 
         self._engine = engine
         self._asset_manager = asset_playback_manager
+        self._controller = controller
+        self._queue_manager = queue_manager
+        if self._controller is not None:
+            self._controller.register_preempt_handler(
+                PlaybackSource.SCHEDULE,
+                self._on_preempted,
+            )
         self._session_factory = session_factory
         self._poll_interval = float(poll_interval_seconds)
 
@@ -67,17 +78,27 @@ class SchedulerRuntime:
         self._started_occurrence: Optional[tuple[int, dt.datetime]] = None
         self._attempted_occurrence: Optional[tuple[int, dt.datetime]] = None
         self._suppressed_occurrence: Optional[tuple[int, dt.datetime]] = None
+        self._playlist_occurrence_key: Optional[tuple[int, dt.datetime]] = None
 
         self._last_selection: Optional[SelectionResult] = None
         self._last_error: Optional[str] = None
 
     @property
     def engine(self) -> AudioEngine:
+        # Production playback is owned by PlaybackController. Expose its
+        # active deck so watchdog/health checks follow the same deck as the
+        # playback API and live UI.
+        if self._controller is not None:
+            return self._controller.engine
         return self._engine
 
     @property
     def asset_playback_manager(self) -> AssetPlaybackManager:
         return self._asset_manager
+
+    @property
+    def playback_controller(self) -> PlaybackController | None:
+        return self._controller
 
     def get_last_selection(self) -> Optional[SelectionResult]:
         with self._lock:
@@ -108,6 +129,8 @@ class SchedulerRuntime:
             )
 
             with self._lock:
+                if self._playlist_occurrence_key is not None and self._playlist_occurrence_key != occurrence_key:
+                    self._playlist_occurrence_key = None
                 if self._started_occurrence == occurrence_key:
                     return self._last_selection
                 if self._suppressed_occurrence == occurrence_key:
@@ -119,7 +142,7 @@ class SchedulerRuntime:
                 return None
 
             try:
-                self._start_selection(db, selection)
+                self._start_selection(db, selection, occurrence_key=occurrence_key)
             except Exception as exc:
                 with self._lock:
                     self._last_error = str(exc)
@@ -142,6 +165,8 @@ class SchedulerRuntime:
         self,
         db: Session,
         selection: SelectionResult,
+        *,
+        occurrence_key: tuple[int, dt.datetime],
     ) -> None:
         """
         Start one selected item.
@@ -150,12 +175,51 @@ class SchedulerRuntime:
         cooldown/history state is recorded. Songs and playlist-selected songs
         use the existing AudioEngine directly.
         """
+        if selection.target_type == "PLAYLIST" and self._queue_manager is not None:
+            self._queue_manager.start_scheduled_playlist(db, selection.target_id)
+            with self._lock:
+                self._playlist_occurrence_key = occurrence_key
+            return
+
+        if self._controller is not None:
+            if selection.selected_kind in {"JINGLE", "ADVERTISEMENT"}:
+                self._controller.start(
+                    PlaybackSource.SCHEDULE,
+                    lambda: self._asset_manager.play_asset(
+                        db,
+                        selection.selected_id,
+                        source=PlaybackSource.SCHEDULE,
+                    ),
+                )
+                return
+
+            self._controller.start_track(
+                PlaybackSource.SCHEDULE,
+                selection.selected_file_path,
+            )
+            return
+
+        # Backward-compatible standalone/test mode.
         if selection.selected_kind in {"JINGLE", "ADVERTISEMENT"}:
             self._asset_manager.play_asset(db, selection.selected_id)
             return
 
         self._engine.load_track(selection.selected_file_path)
         self._engine.play()
+
+    def _on_preempted(
+        self,
+        previous: PlaybackSource,
+        new: PlaybackSource,
+    ) -> None:
+        # Manual playback intentionally cancels the currently active
+        # schedule occurrence. A later schedule occurrence can start normally.
+        if new == PlaybackSource.MANUAL:
+            self.suppress_current_occurrence()
+
+    def is_playlist_occurrence_active(self) -> bool:
+        with self._lock:
+            return self._playlist_occurrence_key is not None
 
     def start(self) -> None:
         """Start the background scheduler loop. Safe to call repeatedly."""
@@ -197,6 +261,7 @@ class SchedulerRuntime:
             self._started_occurrence = None
             self._attempted_occurrence = None
             self._suppressed_occurrence = None
+            self._playlist_occurrence_key = None
 
     def suppress_current_occurrence(self) -> bool:
         """Suppress the occurrence that most recently failed to start.
