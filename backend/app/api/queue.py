@@ -106,10 +106,20 @@ def remove_track(queue_item_id: int, db: Session = Depends(get_db)):
     return None
 
 
+@router.post("/clear", status_code=204)
+def clear_queue_explicit(db: Session = Depends(get_db)):
+    """Clear upcoming queue items without stopping the song already on air."""
+    manager = get_queue_manager()
+    manager.clear_pending(db)
+    db.commit()
+    return None
+
+
 @router.delete("", status_code=204)
 def clear_queue(db: Session = Depends(get_db)):
-    """Remove every item from the queue."""
-    QueueRepository(db).clear()
+    """Backward-compatible alias for clearing upcoming queue items."""
+    manager = get_queue_manager()
+    manager.clear_pending(db)
     db.commit()
     return None
 

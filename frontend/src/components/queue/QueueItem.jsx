@@ -10,7 +10,8 @@ const TYPE_CONFIG = {
 };
 
 export default function QueueItem({ item, position, isImmediate, onClick }) {
-  const config = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.song;
+  const normalizedType = String(item?.type ?? item?.kind ?? item?.content_type ?? "SONG").toLowerCase();
+  const config = TYPE_CONFIG[normalizedType] ?? TYPE_CONFIG.song;
   const Icon = config.icon;
   const songId = item?.song_id ?? (item?.type === 'song' ? item?.id : null);
   const artwork = item?.artwork || item?.artwork_url || item?.cover_url || (songId != null ? api.getSongArtworkUrl(songId) : null);
@@ -32,12 +33,12 @@ export default function QueueItem({ item, position, isImmediate, onClick }) {
         )}
       </span>
       <span className="queueitem__meta">
-        <span className="queueitem__title">{item.title}</span>
-        <span className="queueitem__sub">{item.artist}</span>
+        <span className="queueitem__title">{item.title ?? item.name ?? item.song_title ?? "Unknown track"}</span>
+        <span className="queueitem__sub">{item.artist ?? item.artist_name ?? ""}</span>
       </span>
       <span className="queueitem__right">
         <span className={`queueitem__badge queueitem__badge--${config.className}`}>{config.label}</span>
-        <span className="queueitem__duration mono">{item.duration}</span>
+        <span className="queueitem__duration mono">{item.duration ?? item.duration_seconds ?? ""}</span>
       </span>
     </button>
   );

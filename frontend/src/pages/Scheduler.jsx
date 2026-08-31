@@ -72,6 +72,23 @@ function targetName(item, type) {
   return item.name || item.title || `#${item.id}`;
 }
 
+const ARTWORK_BASE = '/api/library/songs';
+
+function artworkUrl(item) {
+  if (!item) return '';
+  const direct = item.artwork_url || item.artwork || item.cover_url || item.thumbnail_url || item.album_art_url || item.image_url;
+  if (direct) return direct;
+  const songId = item.song_id || (item.id && item.file_path ? item.id : null);
+  return songId ? `${ARTWORK_BASE}/${songId}/artwork` : '';
+}
+
+function Artwork({ item, type, className = '' }) {
+  const [failed, setFailed] = useState(false);
+  const url = type === 'SONG' ? artworkUrl(item) : '';
+  if (!url || failed) return <span className={`schedule-artwork schedule-artwork-fallback ${className}`} aria-hidden="true"><Music2 size={18} /></span>;
+  return <img className={`schedule-artwork ${className}`} src={url} alt="" onError={() => setFailed(true)} />;
+}
+
 export default function Scheduler() {
   const [schedules, setSchedules] = useState([]);
   const [runtime, setRuntime] = useState(null);
@@ -307,22 +324,32 @@ export default function Scheduler() {
             <div className="scheduler-empty"><CalendarClock size={30} /><strong>No schedules yet</strong><span>Add your first song, playlist, ad or jingle schedule.</span><button onClick={openCreate}><Plus size={16} /> Add Schedule</button></div>
           ) : schedules.map((schedule) => {
             const Icon = targetIcon(schedule.target_type);
+            const collection = schedule.target_type === 'SONG' ? songs : schedule.target_type === 'PLAYLIST' ? playlists : schedule.target_type === 'ADVERTISEMENT' ? ads : jingles;
+            const targetItem = collection.find((x) => Number(x.id) === Number(schedule.target_id));
             return (
-              <div className={`schedule-row ${schedule.enabled ? '' : 'is-disabled'}`} key={schedule.id}>
-                <div className="schedule-time"><span>{schedule.start_time}</span><small>to {schedule.end_time}</small></div>
-                <div className="schedule-icon"><Icon size={17} /></div>
-                <div className="schedule-main">
-                  <div className="schedule-title"><strong>{schedule.name}</strong><span className="schedule-badge">{targetLabel(schedule.target_type)}</span></div>
-                  <div className="schedule-meta">
+              <article className={`scheduler-schedule-row ${schedule.enabled ? '' : 'is-disabled'}`} key={schedule.id}>
+                <div className="scheduler-schedule-time"><span>{schedule.start_time}</span><small>to {schedule.end_time}</small></div>
+                <div className="scheduler-schedule-visual">
+                  {artworkUrl(targetItem) ? (
+                    <Artwork item={targetItem} type={schedule.target_type} />
+                  ) : (
+                    <div className="scheduler-schedule-icon"><Icon size={17} /></div>
+                  )}
+                </div>
+                <div className="scheduler-schedule-main">
+                  <div className="scheduler-schedule-title"><strong title={schedule.name}>{schedule.name}</strong><span className="scheduler-schedule-badge">{targetLabel(schedule.target_type)}</span></div>
+                  <div className="scheduler-schedule-meta">
                     <span>ID #{schedule.target_id}</span>
                     <span>{(schedule.days_of_week || []).map((d) => DAYS[d]?.[1]).join(' · ')}</span>
                     <span>{displayDate(schedule.start_date)} — {displayDate(schedule.end_date)}</span>
                   </div>
                 </div>
-                <button className={`schedule-toggle ${schedule.enabled ? 'on' : ''}`} onClick={() => toggleSchedule(schedule)}>{schedule.enabled ? 'ON' : 'OFF'}</button>
-                <button className="icon-button" title="Edit" onClick={() => openEdit(schedule)}><Pencil size={16} /></button>
-                <button className="icon-button danger" title="Delete" onClick={() => removeSchedule(schedule)}><Trash2 size={16} /></button>
-              </div>
+                <div className="scheduler-schedule-actions">
+                  <button className={`scheduler-schedule-toggle ${schedule.enabled ? 'on' : ''}`} onClick={() => toggleSchedule(schedule)}>{schedule.enabled ? 'ON' : 'OFF'}</button>
+                  <button className="scheduler-icon-button" title="Edit" onClick={() => openEdit(schedule)}><Pencil size={16} /></button>
+                  <button className="scheduler-icon-button danger" title="Delete" onClick={() => removeSchedule(schedule)}><Trash2 size={16} /></button>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -349,6 +376,7 @@ export default function Scheduler() {
                   {filteredCollection.length === 0 ? <div className="picker-empty">No matching {targetLabel(type).toLowerCase()} found.</div> : filteredCollection.map((item) => {
                     const active = Number(selectedId) === Number(item.id);
                     return <button type="button" key={item.id} className={`content-option ${active ? 'selected' : ''}`} onClick={() => setSelectedId(item.id)}>
+                      <Artwork item={item} type={type} />
                       <span className="radio">{active && <Check size={13} />}</span>
                       <span className="content-option-main"><strong>{targetName(item, type)}</strong><small>#{item.id}{item.artist ? ` · ${item.artist}` : ''}{item.category ? ` · ${item.category}` : ''}</small></span>
                       {item.duration ? <span className="duration">{Math.round(item.duration)}s</span> : null}

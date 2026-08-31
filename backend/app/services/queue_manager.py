@@ -166,9 +166,11 @@ class QueueManager:
         # playback through the scheduled-playlist source.
         current = self._current_playing(repo)
         if current is not None and current.id != target.id:
-            current.status = QueueItemStatus.SKIPPED.value
-            db.flush()
-
+            # Stop first. AudioEngine/PlaybackController emits its completion
+            # callback synchronously, and that callback uses another DB
+            # session. Mutating the request transaction before stop() can
+            # therefore lock SQLite and turn a perfectly valid click into a
+            # 409/500.
             try:
                 if self._controller is not None:
                     if self._controller.owns(PlaybackSource.QUEUE):
@@ -177,22 +179,38 @@ class QueueManager:
                         self._controller.stop(PlaybackSource.SCHEDULE)
                         self._scheduled_playlist_active = False
                     else:
-                        # Do not steal a higher-priority source unexpectedly.
                         raise PlaybackControllerError(
                             "Queue playback cannot preempt the current playback owner."
                         )
                 else:
                     self._engine.stop()
             except (AudioEngineError, PlaybackControllerError):
-                # If the old deck is already stopped, continue with the
-                # requested queue item. Do not turn an operator click into a
-                # spurious 409.
                 logger.debug("Previous playback was already stopped during direct queue selection.")
+
+            # The stop callback may have committed the old item's SKIPPED
+            # state in another session. Refresh this request session before
+            # starting the requested item.
+            db.expire_all()
+            target = repo.get_by_id(target.id)
+            if target is None or self._status(target) != QueueItemStatus.QUEUED:
+                raise QueueItemNotQueuedError(
+                    f"Queue item {queue_item_id} is no longer queued."
+                )
 
         result = self._start_item(db, target)
         if result is None:
             raise QueueEmptyError("No playable track remained in the queue.")
         return result
+
+    def clear_pending(self, db: Session) -> int:
+        """Clear upcoming queue items without interrupting the current track."""
+        count = QueueRepository(db).clear_pending()
+        # A scheduled playlist must not continue advancing after its pending
+        # materialized tracks have been removed. The current track, if any,
+        # is deliberately left playing.
+        if count and self._scheduled_playlist_active:
+            self._scheduled_playlist_active = False
+        return count
 
     def start_scheduled_playlist(self, db: Session, playlist_id: int) -> dict:
         """Replace the runtime queue with an entire scheduled playlist and start its first track.

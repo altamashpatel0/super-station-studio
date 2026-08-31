@@ -45,7 +45,7 @@ export function useQueue({ enabled = true } = {}) {
       mutate(() => api.moveQueueItemUp(id)),
     moveDown: (id) =>
       mutate(() => api.moveQueueItemDown(id)),
-    play: () =>
-      mutate(() => api.playQueue()),
+    play: (queueItemId = null) =>
+      mutate(() => api.playQueue(queueItemId)),
   };
 }

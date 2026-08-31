@@ -159,6 +159,18 @@ class QueueRepository:
         self.db.flush()
         return count
 
+    def clear_pending(self) -> int:
+        """Remove QUEUED items while leaving the currently PLAYING item alone."""
+        items = self.list_all()
+        count = 0
+        for item in items:
+            status = item.status.value if isinstance(item.status, QueueItemStatus) else str(item.status)
+            if status == QueueItemStatus.QUEUED.value:
+                self.db.delete(item)
+                count += 1
+        self.db.flush()
+        return count
+
     # ------------------------------------------------------------------
     # Reordering
     # ------------------------------------------------------------------

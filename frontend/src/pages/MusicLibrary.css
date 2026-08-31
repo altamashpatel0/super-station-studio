@@ -1,0 +1,44 @@
+.music-library-page { min-width: 0; }
+.music-library-body { min-width: 0; }
+.library-toolbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+.library-search { flex:1; min-width:0; display:flex; align-items:center; gap:10px; height:42px; padding:0 13px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--panel-raised); color:var(--text-tertiary); }
+.library-search:focus-within { border-color:var(--accent-blue); }
+.library-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text-primary); font:inherit; }
+.library-search input::placeholder { color:var(--text-tertiary); }
+.library-view-toggle { display:flex; padding:3px; gap:2px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--panel-inset); }
+.library-view-toggle button { width:34px; height:34px; display:grid; place-items:center; border:0; border-radius:5px; background:transparent; color:var(--text-tertiary); cursor:pointer; }
+.library-view-toggle button.is-active { background:var(--panel-raised); color:var(--text-primary); box-shadow:var(--shadow-raised); }
+.library-message { margin-bottom:12px; }
+.library-stats { display:flex; align-items:center; gap:24px; flex-wrap:wrap; margin-bottom:16px; color:var(--text-secondary); font-size:12px; }
+.library-stats strong { color:var(--text-primary); }
+.music-post-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px; }
+.music-post { min-width:0; overflow:hidden; border:1px solid var(--hairline); border-radius:var(--r-lg); background:var(--panel-raised); transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease; }
+.music-post:hover { transform:translateY(-2px); border-color:var(--hairline-bright); box-shadow:var(--shadow-raised); }
+.music-post.is-selected { border-color:var(--accent-blue); }
+.music-post__media { position:relative; aspect-ratio:1/1; overflow:hidden; background:linear-gradient(135deg,var(--accent-blue-dim),var(--panel-inset)); }
+.music-art,.music-art img,.music-art__fallback { width:100%; height:100%; }
+.music-art img { display:block; object-fit:cover; transition:transform .2s ease; }
+.music-post:hover .music-art img { transform:scale(1.035); }
+.music-art__fallback { display:grid; place-items:center; color:var(--accent-blue); background:radial-gradient(circle at 30% 20%,rgba(59,130,246,.25),transparent 45%),linear-gradient(135deg,var(--accent-blue-dim),var(--panel-inset)); }
+.music-post__overlay { position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:flex-end; padding:10px; background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.65)); opacity:0; transition:opacity .14s ease; }
+.music-post:hover .music-post__overlay { opacity:1; }
+.music-post__play { width:40px; height:40px; border:0; border-radius:50%; display:grid; place-items:center; background:var(--accent-blue); color:white; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+.music-post__check { position:absolute; top:9px; left:9px; width:27px; height:27px; display:grid; place-items:center; border-radius:6px; background:rgba(0,0,0,.58); backdrop-filter:blur(5px); }
+.music-post__check input { margin:0; accent-color:var(--accent-blue); }
+.music-post__format { position:absolute; right:9px; top:9px; padding:3px 7px; border-radius:999px; background:rgba(0,0,0,.62); color:#fff; font-size:8px; font-weight:800; letter-spacing:.08em; }
+.music-post__body { padding:12px 13px 13px; }
+.music-post__title { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--text-primary); font-size:13px; font-weight:700; line-height:1.35; }
+.music-post__artist { margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--text-secondary); font-size:11px; }
+.music-post__meta { display:flex; justify-content:space-between; gap:8px; margin-top:10px; color:var(--text-tertiary); font-size:10px; }
+.music-post__meta span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.library-empty { margin-top:16px; min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--hairline); border-radius:var(--r-lg); color:var(--text-tertiary); text-align:center; }
+.library-empty strong { color:var(--text-secondary); }
+
+@media (max-width: 720px) {
+  .music-post-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .library-toolbar { align-items:stretch; flex-direction:column; }
+  .library-view-toggle { align-self:flex-end; }
+}
+
+/* Light theme compatibility: these use the project's theme variables, so no hard-coded dark surfaces are introduced. */
+[data-theme="light"] .music-post__play { color:#fff; }

@@ -347,7 +347,7 @@ export const api = {
     }),
 
   clearQueue: () =>
-    request("/queue", { method: "DELETE" }),
+    request("/queue/clear", { method: "POST" }),
 
   moveQueueItemUp: (queueItemId) =>
     request(`/queue/${queueItemId}/move-up`, {
