@@ -1,1 +1,153 @@
-.playlist-layout{display:grid;grid-template-columns:280px 1fr;gap:16px;min-width:0}.playlist-list{display:flex;flex-direction:column;gap:8px;padding:10px;height:max-content}.playlist-list__item{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;padding:12px 13px;text-align:left;border:1px solid var(--hairline);border-radius:10px;background:transparent;color:var(--text-primary);cursor:pointer}.playlist-list__item:hover{background:var(--surface-hover)}.playlist-list__item.is-selected{border-color:var(--accent);background:var(--accent-soft)}.playlist-list__count{font-size:12px;color:var(--text-tertiary)}.playlist-detail{min-width:0}.playlist-detail__header{display:flex;justify-content:space-between;align-items:center;gap:16px}.playlist-detail__header h2{margin:0 0 4px}.playlist-detail__header p{margin:0;color:var(--text-tertiary)}.playlist-detail__actions{display:flex;gap:8px;align-items:center}.playlist-track-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0 10px;padding:12px 14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-muted)}.muted{color:var(--text-tertiary);font-size:13px}.playlist-info{margin-bottom:12px;padding:9px 12px;border:1px solid var(--hairline);border-radius:8px;color:var(--text-secondary);background:var(--surface-muted)}.track-picker{border:1px solid var(--hairline);border-radius:12px;margin-bottom:16px;overflow:hidden;background:var(--surface)}.track-picker__top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--hairline)}.track-picker__title{display:flex;align-items:center;gap:10px}.track-picker__title div{display:flex;flex-direction:column}.track-picker__title small{color:var(--text-tertiary);margin-top:2px}.track-picker__selection{padding:5px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}.track-picker__controls{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--hairline)}.track-search{display:flex;align-items:center;gap:8px;flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px}.track-search input{width:100%;border:0;outline:0;background:transparent;color:var(--text-primary)}.picker-action{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px;background:transparent;color:var(--text-primary);cursor:pointer;white-space:nowrap}.picker-action:hover{background:var(--surface-hover)}.picker-action--ghost{color:var(--text-tertiary)}.track-picker__list{max-height:310px;overflow:auto;padding:6px}.track-option{width:100%;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;text-align:left;padding:9px 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text-primary);cursor:pointer}.track-option:hover{background:var(--surface-hover)}.track-option.is-selected{border-color:var(--accent);background:var(--accent-soft)}.track-option__check{width:20px;height:20px;border:1px solid var(--hairline);border-radius:5px;display:grid;place-items:center;color:var(--accent)}.track-option.is-selected .track-option__check{background:var(--accent);border-color:var(--accent);color:white}.track-option__main{display:flex;flex-direction:column;min-width:0}.track-option__main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.track-option__main small{color:var(--text-tertiary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.track-option__duration{font-size:12px;color:var(--text-tertiary)}.track-picker__empty{text-align:center;padding:28px;color:var(--text-tertiary)}.track-picker__footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px;border-top:1px solid var(--hairline);font-size:13px;color:var(--text-tertiary)}@media(max-width:900px){.playlist-layout{grid-template-columns:1fr}.playlist-detail__header,.playlist-track-toolbar,.track-picker__controls,.track-picker__footer{align-items:stretch;flex-direction:column}.track-picker__controls{display:flex}.picker-action{justify-content:center}.playlist-detail__actions{justify-content:flex-end}}
+.playlist-layout{
+  display:grid;
+  grid-template-columns:280px 1fr;
+  gap:16px;
+  min-width:0;
+  /* Local accent tokens for this page only.
+     Primary buttons (New Playlist / Play / Add Tracks) keep the app's
+     default primary button color via the shared <Button> component.
+     Here we reserve red for "active / important" states specific to
+     the playlist UI: the selected playlist, the SONG badge, and the
+     live track/duration readout — reusing the same red already used
+     for destructive actions so the palette stays consistent. */
+  --pl-red:#f36a6a;
+  --pl-red-soft:rgba(243,106,106,.14);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar                                                             */
+/* ------------------------------------------------------------------ */
+.playlist-list{display:flex;flex-direction:column;gap:8px;padding:10px;height:max-content;border:1px solid var(--hairline);border-radius:12px;background:var(--surface)}
+.playlist-list__item{position:relative;display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:transparent;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.playlist-list__item:hover{background:var(--surface-hover)}
+.playlist-list__item.is-selected{border-color:var(--pl-red);background:var(--pl-red-soft)}
+.playlist-list__icon{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:var(--surface-muted);color:var(--text-secondary);flex:0 0 auto;transition:color .12s ease}
+.playlist-list__item.is-selected .playlist-list__icon{color:var(--pl-red)}
+.playlist-list__text{display:flex;flex-direction:column;min-width:0;gap:2px}
+.playlist-list__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);font-size:14px}
+.playlist-list__item.is-selected .playlist-list__name{color:var(--pl-red)}
+.playlist-list__count{font-size:12px;color:var(--text-tertiary)}
+.playlist-list__menu{position:relative;flex:0 0 auto}
+.playlist-list__menu-btn{display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--text-tertiary);cursor:pointer}
+.playlist-list__menu-btn:hover{background:var(--surface-hover);color:var(--text-primary)}
+.playlist-list__dropdown{position:absolute;top:100%;right:0;margin-top:4px;min-width:150px;border:1px solid var(--hairline);border-radius:8px;background:var(--surface-elevated,var(--surface));box-shadow:0 4px 16px rgba(0,0,0,.35);overflow:hidden;z-index:20}
+.playlist-list__dropdown button{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;background:transparent;color:var(--text-primary);font-size:13px;text-align:left;cursor:pointer}
+.playlist-list__dropdown button:hover{background:var(--surface-hover)}
+.playlist-list__dropdown button.is-danger{color:var(--pl-red)}
+.playlist-list__empty{padding:20px;color:var(--text-tertiary);font-size:13px;text-align:center}
+.playlist-list__loading{padding:20px;color:var(--text-tertiary);font-size:13px;text-align:center}
+
+/* ------------------------------------------------------------------ */
+/* Detail panel                                                        */
+/* ------------------------------------------------------------------ */
+.playlist-detail{min-width:0}
+.playlist-detail__header{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.playlist-detail__header h2{margin:0 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
+.playlist-detail__header p{margin:0;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
+.playlist-detail__actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+.iconbtn{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--hairline);border-radius:8px;background:transparent;color:var(--text-primary);cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.iconbtn:hover{background:var(--surface-hover)}
+.iconbtn--danger:hover{border-color:var(--pl-red);color:var(--pl-red)}
+.playlist-detail__empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:64px 24px;color:var(--text-tertiary);text-align:center}
+.playlist-detail__empty svg{color:var(--text-tertiary);opacity:.6}
+
+.playlist-track-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0 10px;padding:12px 14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-muted)}
+.playlist-track-toolbar__stats{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.playlist-track-toolbar__count{color:var(--pl-red)}
+.muted{color:var(--text-tertiary);font-size:13px}
+.playlist-info{margin-bottom:12px;padding:9px 12px;border:1px solid var(--hairline);border-radius:8px;color:var(--text-secondary);background:var(--surface-muted)}
+
+/* ------------------------------------------------------------------ */
+/* Track picker (add tracks)                                           */
+/* ------------------------------------------------------------------ */
+.track-picker{border:1px solid var(--hairline);border-radius:12px;margin-bottom:16px;overflow:hidden;background:var(--surface)}
+.track-picker__top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--hairline)}
+.track-picker__title{display:flex;align-items:center;gap:10px}
+.track-picker__title div{display:flex;flex-direction:column}
+.track-picker__title small{color:var(--text-tertiary);margin-top:2px}
+.track-picker__selection{padding:5px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.track-picker__controls{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--hairline)}
+.track-search{display:flex;align-items:center;gap:8px;flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px}
+.track-search input{width:100%;border:0;outline:0;background:transparent;color:var(--text-primary)}
+.picker-action{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px;background:transparent;color:var(--text-primary);cursor:pointer;white-space:nowrap}
+.picker-action:hover{background:var(--surface-hover)}
+.picker-action--ghost{color:var(--text-tertiary)}
+.track-picker__list{max-height:310px;overflow:auto;padding:6px}
+.track-option{width:100%;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;text-align:left;padding:9px 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text-primary);cursor:pointer}
+.track-option:hover{background:var(--surface-hover)}
+.track-option.is-selected{border-color:var(--accent);background:var(--accent-soft)}
+.track-option__check{width:20px;height:20px;border:1px solid var(--hairline);border-radius:5px;display:grid;place-items:center;color:var(--accent);flex:0 0 auto}
+.track-option.is-selected .track-option__check{background:var(--accent);border-color:var(--accent);color:white}
+.track-option__main{display:flex;flex-direction:column;min-width:0}
+.track-option__main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track-option__main small{color:var(--text-tertiary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track-option__duration{font-size:12px;color:var(--text-tertiary)}
+.track-picker__empty{text-align:center;padding:28px;color:var(--text-tertiary)}
+.track-picker__footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px;border-top:1px solid var(--hairline);font-size:13px;color:var(--text-tertiary)}
+
+/* ------------------------------------------------------------------ */
+/* Track list ("professional radio automation" rows)                   */
+/*                                                                       */
+/* Columns: [drag handle] [#] [artwork] [title+artist] [SONG] [dur] [x] */
+/* ------------------------------------------------------------------ */
+.track-list{border:1px solid var(--hairline);border-radius:12px;overflow:hidden;background:var(--surface)}
+
+.track-list__header,
+.track-row{
+  display:grid;
+  grid-template-columns:20px 30px 44px 1fr 64px 72px 32px;
+  align-items:center;
+  gap:12px;
+}
+
+.track-list__header{padding:10px 14px;border-bottom:1px solid var(--hairline);color:var(--text-tertiary);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.track-list__header-handle,.track-list__header-art{visibility:hidden}
+.track-list__header-duration{text-align:right}
+.track-list__header-remove{visibility:hidden}
+
+.track-row{padding:9px 14px;border-bottom:1px solid var(--hairline);cursor:grab;will-change:transform;background:var(--surface);transition:background .12s ease}
+.track-row:last-child{border-bottom:0}
+.track-row:hover{background:var(--surface-hover)}
+.track-row:active{cursor:grabbing}
+.track-row.is-dragging{opacity:.45}
+.track-row.is-drag-over{box-shadow:inset 0 2px 0 var(--pl-red)}
+
+.track-row__handle{color:var(--text-tertiary);user-select:none;white-space:nowrap;letter-spacing:-2px;text-align:center;cursor:grab}
+.track-row__num{color:var(--text-tertiary);font-variant-numeric:tabular-nums;text-align:center;font-size:12.5px}
+
+.track-row__art{position:relative;width:44px;height:44px;border-radius:8px;overflow:hidden;background:var(--surface-muted);flex:0 0 auto}
+.track-row__art img{width:100%;height:100%;object-fit:cover;display:block}
+.track-row__art-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);background:var(--surface-muted)}
+
+.track-row__main{display:flex;flex-direction:column;min-width:0;gap:2px}
+.track-row__title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);font-size:13.5px}
+.track-row__artist{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary);font-size:12px}
+
+.track-row__badge{justify-self:start;padding:3px 8px;border-radius:5px;background:var(--pl-red-soft);color:var(--pl-red);font-size:10.5px;font-weight:600;letter-spacing:.03em;white-space:nowrap}
+
+.track-row__duration{text-align:right;color:var(--text-secondary);font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}
+
+.track-row__remove{display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--text-tertiary);cursor:pointer;justify-self:center}
+.track-row__remove:hover{background:var(--surface-hover);color:var(--pl-red)}
+
+.track-list__empty{text-align:center;padding:32px;color:var(--text-tertiary)}
+
+@media(prefers-reduced-motion:reduce){.track-row{transition:none!important;transform:none!important}}
+
+/* ------------------------------------------------------------------ */
+/* Responsive                                                          */
+/* ------------------------------------------------------------------ */
+@media(max-width:900px){
+  .playlist-layout{grid-template-columns:1fr}
+  .playlist-detail__header,.playlist-track-toolbar,.track-picker__controls,.track-picker__footer{align-items:stretch;flex-direction:column}
+  .track-picker__controls{display:flex}
+  .picker-action{justify-content:center}
+  .playlist-detail__actions{justify-content:flex-end}
+  .playlist-detail__header h2,.playlist-detail__header p{max-width:none}
+
+  .track-list__header,
+  .track-row{grid-template-columns:16px 26px 36px 1fr 60px 28px}
+  .track-list__header-badge{display:none}
+  .track-row__badge{display:none}
+  .track-row__art{width:36px;height:36px}
+}
