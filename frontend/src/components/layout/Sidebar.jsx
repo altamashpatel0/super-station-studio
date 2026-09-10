@@ -4,10 +4,10 @@ import {
   ListMusic,
   Radio,
   Megaphone,
+  BadgeInfo,
   CalendarClock,
   ScrollText,
   Settings,
-  AudioWaveform,
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'jingles', label: 'Jingles', icon: Radio },
   { id: 'advertisements', label: 'Advertisements', icon: Megaphone },
+  { id: 'promos', label: 'Promos', icon: BadgeInfo },
   { id: 'scheduler', label: 'Scheduler', icon: CalendarClock },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -27,7 +28,7 @@ export default function Sidebar({ activePage, onNavigate }) {
     <aside className="sidebar">
       <div className="sidebar__brand">
         <div className="sidebar__brand-mark">
-          <AudioWaveform size={20} strokeWidth={2.25} />
+          <img src="/super-station-logo.png" alt="Super Station Studio" />
         </div>
         <div className="sidebar__brand-text">
           <span className="sidebar__brand-name">SUPER STATION</span>

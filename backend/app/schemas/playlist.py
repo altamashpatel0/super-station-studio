@@ -45,10 +45,13 @@ class PlaylistOut(BaseModel):
 class PlaylistTrackOut(BaseModel):
     id: int
     playlist_id: int
-    song_id: int
+    song_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    track_type: str = "SONG"
     position: int
     added_at: Optional[str] = None
     song: Optional[SongOut] = None
+    asset: Optional[dict] = None
 
 
 class PlaylistDetailOut(PlaylistOut):
@@ -58,9 +61,14 @@ class PlaylistDetailOut(PlaylistOut):
 
 
 class AddTrackRequest(BaseModel):
-    song_id: int
+    song_id: Optional[int] = None
+    asset_id: Optional[int] = None
     # Zero-based insert position; omit to append to the end.
     position: Optional[int] = Field(None, ge=0)
+
+    @property
+    def is_valid_reference(self) -> bool:
+        return (self.song_id is not None) ^ (self.asset_id is not None)
 
 
 class ReorderTracksRequest(BaseModel):

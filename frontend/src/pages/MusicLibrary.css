@@ -42,3 +42,90 @@
 
 /* Light theme compatibility: these use the project's theme variables, so no hard-coded dark surfaces are introduced. */
 [data-theme="light"] .music-post__play { color:#fff; }
+
+/* ===== Music Library import progress ===== */
+.library-import-progress{
+  margin:0 0 14px;
+  padding:14px 16px;
+  border:1px solid var(--accent-blue-dim);
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--accent-blue-dim),var(--panel-raised));
+  box-shadow:var(--shadow-panel);
+}
+.library-import-progress__top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.library-import-progress__top>div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.library-import-progress__eyebrow{
+  color:var(--accent-blue);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.14em;
+}
+.library-import-progress__top strong{
+  color:var(--text-primary);
+  font-size:13px;
+}
+.library-import-progress__percent{
+  flex:0 0 auto;
+  color:var(--accent-blue)!important;
+  font-family:var(--font-display);
+  font-size:18px!important;
+}
+.library-import-progress__track{
+  height:8px;
+  margin-top:11px;
+  overflow:hidden;
+  border-radius:999px;
+  background:var(--panel-inset);
+  border:1px solid var(--hairline);
+}
+.library-import-progress__fill{
+  height:100%;
+  min-width:0;
+  border-radius:inherit;
+  background:var(--accent-blue);
+  box-shadow:0 0 12px var(--accent-blue-dim);
+  transition:width .18s ease;
+}
+.library-import-progress__meta{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:8px;
+  color:var(--text-tertiary);
+  font-size:10px;
+}
+.library-import-progress__current{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px solid var(--hairline);
+  color:var(--text-tertiary);
+  font-size:10px;
+}
+.library-import-progress__current strong{
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  color:var(--text-secondary);
+  font-size:10px;
+}
+
+@media(max-width:600px){
+  .library-import-progress{padding:12px}
+  .library-import-progress__meta{flex-direction:column;gap:3px}
+  .library-import-progress__current{align-items:flex-start;flex-direction:column;gap:2px}
+}

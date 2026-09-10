@@ -67,7 +67,7 @@ def create_asset(request: AssetImportRequest, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[AssetOut])
 def list_assets(
-    asset_type: Optional[str] = Query(None, pattern="^(JINGLE|ADVERTISEMENT)$"),
+    asset_type: Optional[str] = Query(None, pattern="^(JINGLE|ADVERTISEMENT|PROMO)$"),
     category: Optional[str] = None,
     search: Optional[str] = None,
     enabled_only: bool = Query(False),

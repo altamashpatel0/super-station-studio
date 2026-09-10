@@ -14,6 +14,7 @@ from ..services.asset_playback_manager import AssetPlaybackManager
 from ..services.clock_wheel import ClockWheel
 from .playback_controller import PlaybackController, PlaybackSource
 from .queue_manager import QueueManager
+from .playback_history import PlaybackHistoryRecorder
 from ..services.scheduler_selection import (
     SelectionError,
     SelectionResult,
@@ -51,6 +52,7 @@ class SchedulerRuntime:
         asset_playback_manager: AssetPlaybackManager,
         controller: PlaybackController | None = None,
         queue_manager: QueueManager | None = None,
+        history_recorder: PlaybackHistoryRecorder | None = None,
         *,
         session_factory: Callable[[], Session] = session_scope,
         poll_interval_seconds: float = POLL_INTERVAL_SECONDS,
@@ -62,6 +64,7 @@ class SchedulerRuntime:
         self._asset_manager = asset_playback_manager
         self._controller = controller
         self._queue_manager = queue_manager
+        self._history_recorder = history_recorder
         if self._controller is not None:
             self._controller.register_preempt_handler(
                 PlaybackSource.SCHEDULE,
@@ -79,6 +82,7 @@ class SchedulerRuntime:
         self._attempted_occurrence: Optional[tuple[int, dt.datetime]] = None
         self._suppressed_occurrence: Optional[tuple[int, dt.datetime]] = None
         self._playlist_occurrence_key: Optional[tuple[int, dt.datetime]] = None
+        self._started_end_datetime: Optional[dt.datetime] = None
 
         self._last_selection: Optional[SelectionResult] = None
         self._last_error: Optional[str] = None
@@ -119,9 +123,24 @@ class SchedulerRuntime:
         current = now or dt.datetime.now()
 
         with self._session_factory() as db:
+            # Enforce the stored end boundary from the occurrence we actually
+            # started. This is intentionally checked before resolving the new
+            # current schedule, so an expired playlist can never continue just
+            # because the clock resolver/overlap state changes at the boundary.
+            if self._started_end_datetime is not None and current >= self._started_end_datetime:
+                self._handle_schedule_window_end(db, current)
+
             occurrence = ClockWheel(db).get_current_schedule(current)
             if occurrence is None:
+                self._handle_schedule_window_end(db, current)
                 return None
+
+            # If a scheduled playlist is still the active owner but its native
+            # track-end callback was missed, recover the next queued song here.
+            # The queue manager guards this path so it cannot race the normal
+            # completion callback.
+            if self._queue_manager is not None and self._queue_manager.scheduled_playlist_active:
+                self._queue_manager.ensure_scheduled_continuation(db)
 
             occurrence_key = (
                 occurrence.schedule_id,
@@ -137,29 +156,96 @@ class SchedulerRuntime:
                     return None
                 self._attempted_occurrence = occurrence_key
 
-            selection = select_for_current_schedule(db, current)
-            if selection is None:
-                return None
-
             try:
+                selection = select_for_current_schedule(db, current)
+                if selection is None:
+                    return None
                 self._start_selection(db, selection, occurrence_key=occurrence_key)
             except Exception as exc:
                 with self._lock:
                     self._last_error = str(exc)
                 logger.exception(
                     "Failed to start scheduled target for schedule %s",
-                    selection.schedule_id,
+                    occurrence.schedule_id,
                 )
                 raise SchedulerRuntimeError(
-                    f"Failed to start schedule {selection.schedule_id}: {exc}"
+                    f"Failed to start schedule {occurrence.schedule_id}: {exc}"
                 ) from exc
 
             with self._lock:
                 self._started_occurrence = occurrence_key
+                self._started_end_datetime = occurrence.end_datetime
                 self._last_selection = selection
                 self._last_error = None
 
             return selection
+
+    def _handle_schedule_window_end(self, db: Session, now: dt.datetime) -> None:
+        """Pause bounded scheduled playback exactly when its schedule expires.
+
+        The scheduler is intentionally allowed to schedule content longer than
+        its time window. When the window closes, the current scheduled item is
+        paused and scheduler ownership is released so the next schedule or a
+        manual operator action can take over normally. Remaining items from a
+        scheduled playlist are discarded because they belong to the expired
+        window.
+        """
+        with self._lock:
+            started = self._started_occurrence
+            controller = self._controller
+            queue_manager = self._queue_manager
+
+        if started is None or controller is None:
+            return
+        if controller.active_source != PlaybackSource.SCHEDULE:
+            return
+
+        pause_failed = False
+        try:
+            status = controller.engine.get_status()
+            state_name = getattr(getattr(status, "state", None), "name", str(getattr(status, "state", "")))
+            if state_name == "PLAYING":
+                controller.pause()
+        except Exception:
+            pause_failed = True
+            logger.exception("Failed to pause scheduled playback at schedule end")
+
+        # The time boundary is authoritative. If pause itself fails (for
+        # example because the audio device is already transitioning), do not
+        # return early and leave the scheduled queue alive. Fall back to a
+        # controlled stop so the expired programme can never continue.
+        if pause_failed:
+            try:
+                if controller.active_source == PlaybackSource.SCHEDULE:
+                    controller.stop(PlaybackSource.SCHEDULE)
+            except Exception:
+                logger.exception("Failed to stop scheduled playback after pause failure")
+
+        if queue_manager is not None and queue_manager.scheduled_playlist_active:
+            try:
+                queue_manager.end_scheduled_playlist(db)
+            except Exception:
+                logger.exception("Failed to finalize scheduled playlist at schedule end")
+
+        if self._history_recorder is not None:
+            self._history_recorder.finish_active_as_skipped(
+                "Scheduled playback window ended before the item completed."
+            )
+
+        try:
+            db.commit()
+        except Exception:
+            logger.exception("Failed to commit scheduler end-of-window state")
+
+        controller.release_if_owned(PlaybackSource.SCHEDULE)
+        with self._lock:
+            self._playlist_occurrence_key = None
+            self._started_occurrence = None
+            self._started_end_datetime = None
+            self._attempted_occurrence = None
+            self._suppressed_occurrence = None
+            self._last_selection = None
+            self._last_error = None
 
     def _start_selection(
         self,
@@ -182,7 +268,11 @@ class SchedulerRuntime:
             return
 
         if self._controller is not None:
-            if selection.selected_kind in {"JINGLE", "ADVERTISEMENT"}:
+            # A preemption callback may persist the outgoing queue item using
+            # another SQLAlchemy session. Ensure this scheduler session has no
+            # pending write transaction before entering PlaybackController.
+            db.commit()
+            if selection.selected_kind in {"JINGLE", "ADVERTISEMENT", "PROMO"}:
                 self._controller.start(
                     PlaybackSource.SCHEDULE,
                     lambda: self._asset_manager.play_asset(
@@ -200,7 +290,7 @@ class SchedulerRuntime:
             return
 
         # Backward-compatible standalone/test mode.
-        if selection.selected_kind in {"JINGLE", "ADVERTISEMENT"}:
+        if selection.selected_kind in {"JINGLE", "ADVERTISEMENT", "PROMO"}:
             self._asset_manager.play_asset(db, selection.selected_id)
             return
 
@@ -259,6 +349,7 @@ class SchedulerRuntime:
         """
         with self._lock:
             self._started_occurrence = None
+            self._started_end_datetime = None
             self._attempted_occurrence = None
             self._suppressed_occurrence = None
             self._playlist_occurrence_key = None

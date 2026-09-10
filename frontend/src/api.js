@@ -175,6 +175,15 @@ export const api = {
       }),
     }),
 
+  addAssetToPlaylist: (playlistId, assetId, position) =>
+    request(`/playlists/${playlistId}/tracks`, {
+      method: "POST",
+      body: JSON.stringify({
+        asset_id: assetId,
+        position: position ?? null,
+      }),
+    }),
+
   removeTrackFromPlaylist: (playlistId, trackId) =>
     request(`/playlists/${playlistId}/tracks/${trackId}`, {
       method: "DELETE",
@@ -347,7 +356,7 @@ export const api = {
     }),
 
   clearQueue: () =>
-    request("/queue/clear", { method: "POST" }),
+    request("/queue", { method: "DELETE" }),
 
   moveQueueItemUp: (queueItemId) =>
     request(`/queue/${queueItemId}/move-up`, {

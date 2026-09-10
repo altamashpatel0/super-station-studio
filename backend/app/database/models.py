@@ -179,8 +179,11 @@ class PlaylistTrack(Base):
     playlist_id: Mapped[int] = mapped_column(
         ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    song_id: Mapped[int] = mapped_column(
-        ForeignKey("songs.id", ondelete="CASCADE"), nullable=False, index=True
+    song_id: Mapped[int | None] = mapped_column(
+        ForeignKey("songs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    asset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # Dense, zero-based order within a playlist. Deliberately *not*
@@ -196,21 +199,27 @@ class PlaylistTrack(Base):
 
     playlist: Mapped["Playlist"] = relationship("Playlist", back_populates="tracks")
     song: Mapped["Song"] = relationship("Song")
+    asset: Mapped["Asset"] = relationship("Asset")
 
     __table_args__ = (
         Index("ix_playlist_tracks_playlist_position", "playlist_id", "position"),
     )
 
     def to_dict(self, *, include_song: bool = False) -> dict:
+        track_type = "PROMO" if self.asset_id is not None else "SONG"
         data = {
             "id": self.id,
             "playlist_id": self.playlist_id,
             "song_id": self.song_id,
+            "asset_id": self.asset_id,
+            "track_type": track_type,
             "position": self.position,
             "added_at": self.added_at.isoformat() if self.added_at else None,
         }
         if include_song and self.song is not None:
             data["song"] = self.song.to_dict()
+        if include_song and self.asset is not None:
+            data["asset"] = self.asset.to_dict()
         return data
 
 
@@ -224,6 +233,7 @@ class AssetType(str, enum.Enum):
 
     JINGLE = "JINGLE"
     ADVERTISEMENT = "ADVERTISEMENT"
+    PROMO = "PROMO"
 
 
 class Asset(Base):
@@ -372,6 +382,7 @@ class ScheduleTargetType(str, enum.Enum):
     SONG = "SONG"
     JINGLE = "JINGLE"
     ADVERTISEMENT = "ADVERTISEMENT"
+    PROMO = "PROMO"
     PLAYLIST = "PLAYLIST"
 
 
@@ -492,8 +503,11 @@ class QueueItem(Base):
     __tablename__ = "queue_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    song_id: Mapped[int] = mapped_column(
-        ForeignKey("songs.id", ondelete="CASCADE"), nullable=False, index=True
+    song_id: Mapped[int | None] = mapped_column(
+        ForeignKey("songs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    asset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # Dense, zero-based order over the whole queue. Deliberately not
@@ -515,6 +529,7 @@ class QueueItem(Base):
     )
 
     song: Mapped["Song"] = relationship("Song")
+    asset: Mapped["Asset"] = relationship("Asset")
 
     __table_args__ = (
         Index("ix_queue_items_position", "position"),
@@ -522,13 +537,18 @@ class QueueItem(Base):
 
     def to_dict(self, *, include_song: bool = False) -> dict:
         status_value = self.status.value if isinstance(self.status, QueueItemStatus) else self.status
+        item_type = "PROMO" if self.asset_id is not None else "SONG"
         data = {
             "id": self.id,
             "song_id": self.song_id,
+            "asset_id": self.asset_id,
+            "item_type": item_type,
             "position": self.position,
             "status": status_value,
             "added_at": self.added_at.isoformat() if self.added_at else None,
         }
         if include_song and self.song is not None:
             data["song"] = self.song.to_dict()
+        if include_song and self.asset is not None:
+            data["asset"] = self.asset.to_dict()
         return data

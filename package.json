@@ -1,0 +1,61 @@
+{
+  "name": "super-station-studio-desktop",
+  "version": "1.0.0",
+  "description": "Super Station Studio - desktop radio playout and automation software",
+  "author": "Super Station Studio",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:build": "npm --prefix frontend run build",
+    "desktop:dev": "electron .",
+    "desktop:build": "npm run backend:build && npm run frontend:build && electron-builder",
+    "backend:build": "scripts\\build-backend.bat",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:preview": "npm --prefix frontend run preview"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.superstationstudio.app",
+    "productName": "Super Station Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend-dist"
+      },
+      {
+        "from": "backend/dist",
+        "to": "backend-dist"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/app.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "electron/assets/app.ico",
+      "uninstallerIcon": "electron/assets/app.ico"
+    }
+  }
+}

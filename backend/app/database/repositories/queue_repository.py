@@ -27,7 +27,7 @@ from typing import Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import QueueItem, QueueItemStatus, Song
+from ..models import Asset, QueueItem, QueueItemStatus, Song
 
 
 class SongNotFoundError(Exception):
@@ -52,7 +52,7 @@ class QueueRepository:
         stmt = (
             select(QueueItem)
             .order_by(QueueItem.position.asc())
-            .options(selectinload(QueueItem.song))
+            .options(selectinload(QueueItem.song), selectinload(QueueItem.asset))
         )
         return self.db.execute(stmt).scalars().all()
 
@@ -105,6 +105,51 @@ class QueueRepository:
         self.db.flush()
         return item
 
+    def add_asset(self, asset_id: int, *, play_next: bool = False) -> QueueItem:
+        """Queue one station asset (currently used for Promos)."""
+        if self.db.get(Asset, asset_id) is None:
+            raise ValueError(f"No asset with id {asset_id}.")
+        existing = list(self.list_all())
+        insert_at = self._play_next_insert_index(existing) if play_next else len(existing)
+        for item in existing[insert_at:]:
+            item.position += 1
+        item = QueueItem(
+            song_id=None,
+            asset_id=asset_id,
+            position=insert_at,
+            status=QueueItemStatus.QUEUED.value,
+            added_at=datetime.datetime.utcnow(),
+        )
+        self.db.add(item)
+        self.db.flush()
+        return item
+
+    def add_playlist_items(self, track_refs: Sequence[dict]) -> list[QueueItem]:
+        """Append playlist occurrences in order; each ref is {song_id} or {asset_id}."""
+        start = len(self.list_all())
+        created: list[QueueItem] = []
+        now = datetime.datetime.utcnow()
+        for offset, ref in enumerate(track_refs):
+            song_id = ref.get("song_id")
+            asset_id = ref.get("asset_id")
+            if (song_id is None) == (asset_id is None):
+                raise ValueError("Each playlist queue item must reference exactly one song or asset.")
+            if song_id is not None and self.db.get(Song, song_id) is None:
+                raise SongNotFoundError(f"No song with id {song_id}.")
+            if asset_id is not None and self.db.get(Asset, asset_id) is None:
+                raise ValueError(f"No asset with id {asset_id}.")
+            item = QueueItem(
+                song_id=song_id,
+                asset_id=asset_id,
+                position=start + offset,
+                status=QueueItemStatus.QUEUED.value,
+                added_at=now,
+            )
+            self.db.add(item)
+            created.append(item)
+        self.db.flush()
+        return created
+
     def add_songs(self, song_ids: Sequence[int]) -> list[QueueItem]:
         """
         Append `song_ids` (already in the caller's desired order - e.g.
@@ -156,18 +201,6 @@ class QueueRepository:
         count = len(items)
         for item in items:
             self.db.delete(item)
-        self.db.flush()
-        return count
-
-    def clear_pending(self) -> int:
-        """Remove QUEUED items while leaving the currently PLAYING item alone."""
-        items = self.list_all()
-        count = 0
-        for item in items:
-            status = item.status.value if isinstance(item.status, QueueItemStatus) else str(item.status)
-            if status == QueueItemStatus.QUEUED.value:
-                self.db.delete(item)
-                count += 1
         self.db.flush()
         return count
 

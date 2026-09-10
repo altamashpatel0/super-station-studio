@@ -74,6 +74,7 @@ export default function MusicLibrary() {
   const [selected, setSelected] = useState(new Set());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [importProgress, setImportProgress] = useState(null);
   const [error, setError] = useState("");
   const [view, setView] = useState("grid");
 
@@ -103,48 +104,158 @@ export default function MusicLibrary() {
   }, [songs, query]);
 
   const importFolder = async (event) => {
-    const files = Array.from(event.target.files || []);
+    const files = Array.from(event.target.files || []).filter((file) =>
+      /\.(mp3|wav)$/i.test(file.name)
+    );
     event.target.value = "";
-    if (!files.length) return;
+
+    if (!files.length) {
+      setError("No MP3/WAV files were found in the selected folder.");
+      return;
+    }
+
+    const currentCount = songs.length;
+    const remainingSlots = Math.max(0, 500 - currentCount);
+
+    if (remainingSlots <= 0) {
+      setError("Music Library limit reached: maximum 500 songs.");
+      return;
+    }
+
+    const filesToImport = files.slice(0, remainingSlots);
+    const skippedForLimit = files.length - filesToImport.length;
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setImportProgress({
+      total: filesToImport.length,
+      completed: 0,
+      imported: 0,
+      failed: 0,
+      remaining: filesToImport.length,
+      currentName: filesToImport[0]?.name || "",
+    });
+
+    let imported = 0;
+    let failed = 0;
+
     try {
-      setBusy(true);
-      setError("");
-      setMessage(`Importing ${files.length} audio file(s)...`);
-      await api.importMusicFiles(files);
+      // Sequential upload gives a truthful per-song progress indicator and
+      // avoids creating multiple simultaneous library/database writers.
+      for (let index = 0; index < filesToImport.length; index += 1) {
+        const file = filesToImport[index];
+
+        setImportProgress((prev) => ({
+          ...prev,
+          currentName: file.name,
+          remaining: filesToImport.length - index,
+        }));
+
+        try {
+          await api.importMusicFiles([file]);
+          imported += 1;
+        } catch (e) {
+          failed += 1;
+          setError(`${file.name}: ${e.message || "Import failed."}`);
+        }
+
+        const completed = index + 1;
+        setImportProgress((prev) => ({
+          ...prev,
+          completed,
+          imported,
+          failed,
+          remaining: filesToImport.length - completed,
+          currentName: completed < filesToImport.length
+            ? filesToImport[completed].name
+            : file.name,
+        }));
+      }
+
       await load();
-      setMessage(`Imported ${files.length} file(s).`);
+
+      const limitNote = skippedForLimit
+        ? ` · ${skippedForLimit} skipped (500-song limit)`
+        : "";
+      setMessage(
+        `${imported} song${imported === 1 ? "" : "s"} imported` +
+        `${failed ? ` · ${failed} failed` : ""}${limitNote}.`
+      );
     } catch (e) {
       setError(e.message || "Music import failed.");
       setMessage("");
     } finally {
+      setImportProgress((prev) => prev ? ({
+        ...prev,
+        completed: prev.total,
+        imported,
+        failed,
+        remaining: 0,
+      }) : null);
       setBusy(false);
+
+      window.setTimeout(() => {
+        setImportProgress(null);
+      }, 1200);
     }
   };
 
   const removeSelected = async () => {
-    if (!selected.size) return;
+    if (!selected.size || busy) return;
+
+    const count = selected.size;
+    const confirmed = window.confirm(
+      `Delete ${count} selected track${count === 1 ? "" : "s"} from the library and permanently delete the audio file${count === 1 ? "" : "s"} from disk?\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+
     try {
       setBusy(true);
-      for (const id of selected) await api.deleteSong(id);
+      setError("");
+      setMessage(`Deleting ${count} track${count === 1 ? "" : "s"} and audio file${count === 1 ? "" : "s"}...`);
+
+      for (const id of selected) {
+        await api.deleteSong(id, { deleteFile: true });
+      }
+
       setSelected(new Set());
       await load();
+      setMessage(`Deleted ${count} track${count === 1 ? "" : "s"} and removed the audio file${count === 1 ? "" : "s"} from disk.`);
     } catch (e) {
-      setError(e.message || "Unable to remove selected tracks.");
+      setError(e.message || "Unable to delete selected tracks.");
+      setMessage("");
+      await load();
     } finally {
       setBusy(false);
     }
   };
 
   const removeAll = async () => {
-    if (!songs.length) return;
-    if (!window.confirm(`Remove all ${songs.length} tracks from the library?`)) return;
+    if (!songs.length || busy) return;
+
+    const count = songs.length;
+    const confirmed = window.confirm(
+      `Delete all ${count} tracks from the library and permanently delete their audio files from disk?\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+
     try {
       setBusy(true);
-      for (const song of songs) await api.deleteSong(song.id);
+      setError("");
+      setMessage(`Deleting ${count} tracks and audio files...`);
+
+      for (const song of songs) {
+        await api.deleteSong(song.id, { deleteFile: true });
+      }
+
       setSelected(new Set());
       await load();
+      setMessage(`Deleted all ${count} tracks and removed their audio files from disk.`);
     } catch (e) {
-      setError(e.message || "Unable to remove all tracks.");
+      setError(e.message || "Unable to delete all tracks.");
+      setMessage("");
+      await load();
     } finally {
       setBusy(false);
     }
@@ -203,6 +314,50 @@ export default function MusicLibrary() {
             <button className={view === "table" ? "is-active" : ""} onClick={() => setView("table")} title="Table view"><List size={16} /></button>
           </div>
         </div>
+
+        {importProgress && (
+          <div className="library-import-progress" role="status" aria-live="polite">
+            <div className="library-import-progress__top">
+              <div>
+                <span className="library-import-progress__eyebrow">IMPORTING MUSIC</span>
+                <strong>
+                  {importProgress.completed} of {importProgress.total} songs processed
+                </strong>
+              </div>
+              <strong className="library-import-progress__percent">
+                {Math.round((importProgress.completed / Math.max(1, importProgress.total)) * 100)}%
+              </strong>
+            </div>
+
+            <div className="library-import-progress__track">
+              <div
+                className="library-import-progress__fill"
+                style={{
+                  width: `${Math.min(100, Math.round((importProgress.completed / Math.max(1, importProgress.total)) * 100))}%`,
+                }}
+              />
+            </div>
+
+            <div className="library-import-progress__meta">
+              <span>
+                {importProgress.remaining > 0
+                  ? `${importProgress.remaining} song${importProgress.remaining === 1 ? "" : "s"} remaining`
+                  : "Import complete"}
+              </span>
+              <span>
+                {importProgress.imported} imported
+                {importProgress.failed ? ` · ${importProgress.failed} failed` : ""}
+              </span>
+            </div>
+
+            {importProgress.remaining > 0 && (
+              <div className="library-import-progress__current" title={importProgress.currentName}>
+                <span>Processing</span>
+                <strong>{importProgress.currentName}</strong>
+              </div>
+            )}
+          </div>
+        )}
 
         {message && <div className="badge badge--info library-message">{message}</div>}
         {error && <div className="badge badge--error library-message">{error}</div>}

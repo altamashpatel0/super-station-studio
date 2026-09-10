@@ -31,7 +31,7 @@ class AssetImportRequest(BaseModel):
 
     file_path: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=200)
-    asset_type: str = Field(..., pattern="^(JINGLE|ADVERTISEMENT)$")
+    asset_type: str = Field(..., pattern="^(JINGLE|ADVERTISEMENT|PROMO)$")
     category: str = ""
     description: str = ""
     priority: int = 0

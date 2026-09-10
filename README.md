@@ -1,79 +1,69 @@
-# super-station-studio
-# 🎙️ Super Station Studio
+# Super Station Studio
 
-Professional Radio Automation & Playout System.
+Professional Windows radio playout and automation software.
 
-## Project Overview
+## Current implemented areas
 
-Super Station Studio is a Windows desktop radio automation and playout application designed for professional radio station operations.
+- React + Electron desktop interface
+- FastAPI backend
+- SQLite per-user persistence in Electron
+- Music library scanning/import
+- Playlist management
+- Queue management
+- Manual playback controls
+- Jingles and advertisements
+- Schedule management with repeat days and calendar date range
+- 24/7 scheduler worker with recovery/watchdog lifecycle
+- Playback history and reports
+- Live station status
+- Local operator settings
+- Supplied Super Station Studio branding/logo
 
-## Core Features
+## Playback rule
 
-- Music Library
-- Playlist Management
-- Audio Playout
-- Two-Deck Playback
-- Crossfade
-- Jingles & Station IDs
-- Advertisement Scheduling
-- Clock Wheel
-- Program Scheduling
-- 24/7 Automation
-- Live Assist / DJ Mode
-- Playback History
-- Reports
-- Multi-Output Audio
-- Internet Radio Streaming
+Super Station Studio uses a **last valid playback request wins** model:
 
-## Technology Stack
+- Manual playback can replace scheduled playback.
+- Scheduled playback can replace manual playback.
+- Queue playback can replace the current source when explicitly requested.
+- Asset playback can replace the current source.
 
-### Frontend
-- React
-- Electron
+The previous item is recorded as skipped/replaced where applicable; playback history is not deleted.
+
+## Development
 
 ### Backend
-- Python
-- FastAPI
 
-### Database
-- SQLite
+```bat
+cd /d "E:\internship project\super-station-studio"
+cd backend
+python run_backend.py
+```
 
-### Audio Engine
-- Dedicated audio playback engine
+### Frontend
 
-## Development Roadmap
+```bat
+cd /d "E:\internship project\super-station-studio"
+npm run frontend:dev
+```
 
-### V0.1
-Core Audio Engine
+Or:
 
-### V0.2
-Music Library
+```bat
+cd frontend
+npm run dev
+```
 
-### V0.3
-Playlist & Queue
+## Production build
 
-### V0.4
-Two Decks & Crossfade
+Do not package until development-mode playback, scheduler, storage and multi-user isolation tests pass.
 
-### V0.5
-Jingles & Advertisements
+```bat
+npm run desktop:build
+```
 
-### V0.6
-Scheduler & Clock Wheel
+## Notes
 
-### V0.7
-24/7 Automation & Recovery
+The supplied audio engine currently decodes one complete track into memory. This keeps the V1 playback state machine simple, but very long uncompressed WAV files can consume substantial RAM. Streaming decode is a future performance upgrade.
 
-### V0.8
-Live Assist & Reports
-
-### V1.0
-Complete Station System
-
-## Team
-
-Project Lead:
-Altamash
-
-## Status
-completed 
+See `AUDIT_REPORT.md` for the project audit, fixes, verification results, and remaining V1 architecture work.

@@ -61,8 +61,8 @@ def get_queue(db: Session = Depends(get_db)):
 def add_track(request: AddQueueItemRequest, db: Session = Depends(get_db)):
     """
     Queue a single song from the Music Library (appended to the end by
-    default). Pass `play_next: true` to insert it right after whatever
-    is currently playing instead.
+    default). If the station is idle, the queue starts automatically. Pass
+    `play_next: true` to insert it right after whatever is currently playing.
 
     The same song can be queued more than once - each call always adds
     a new, distinct queue item rather than merging with an existing
@@ -73,22 +73,50 @@ def add_track(request: AddQueueItemRequest, db: Session = Depends(get_db)):
         item = repo.add_track(request.song_id, play_next=request.play_next)
     except SongNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # Commit the queue insertion first so the playback callback can safely
+    # observe the new item from its own request-scoped/session context. If the
+    # station is idle, QueueManager automatically starts the first queued
+    # item; if another source owns playback, nothing is preempted.
     db.commit()
+    try:
+        manager = get_queue_manager()
+        manager.ensure_playing_if_idle(db)
+        db.commit()
+    except QueueEmptyError:
+        db.commit()
+    except PlaybackControllerError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return item.to_dict(include_song=True)
 
 
 @router.post("/playlist/{playlist_id}", response_model=list[QueueItemOut], status_code=201)
 def add_playlist(playlist_id: int, db: Session = Depends(get_db)):
     """Append every track in a playlist to the end of the queue, in the
-    playlist's current order. An empty playlist queues nothing and
-    returns `[]`; a missing playlist is a 404."""
+    playlist's current order. If the station is idle, the queue starts
+    automatically and then continues through every queued track. An empty
+    playlist queues nothing and returns `[]`; a missing playlist is a 404."""
     playlist = PlaylistRepository(db).get_with_tracks(playlist_id)
     if playlist is None:
         raise HTTPException(status_code=404, detail=f"No playlist with id {playlist_id}.")
 
-    song_ids = [track.song_id for track in playlist.tracks]
-    items = QueueRepository(db).add_songs(song_ids)
+    track_refs = []
+    for track in sorted(playlist.tracks, key=lambda t: (t.position, t.id)):
+        if track.asset_id is not None:
+            track_refs.append({"asset_id": track.asset_id})
+        elif track.song_id is not None:
+            track_refs.append({"song_id": track.song_id})
+    items = QueueRepository(db).add_playlist_items(track_refs)
     db.commit()
+    try:
+        manager = get_queue_manager()
+        manager.ensure_playing_if_idle(db)
+        db.commit()
+    except QueueEmptyError:
+        db.commit()
+    except PlaybackControllerError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return [item.to_dict(include_song=True) for item in items]
 
 
@@ -106,20 +134,10 @@ def remove_track(queue_item_id: int, db: Session = Depends(get_db)):
     return None
 
 
-@router.post("/clear", status_code=204)
-def clear_queue_explicit(db: Session = Depends(get_db)):
-    """Clear upcoming queue items without stopping the song already on air."""
-    manager = get_queue_manager()
-    manager.clear_pending(db)
-    db.commit()
-    return None
-
-
 @router.delete("", status_code=204)
 def clear_queue(db: Session = Depends(get_db)):
-    """Backward-compatible alias for clearing upcoming queue items."""
-    manager = get_queue_manager()
-    manager.clear_pending(db)
+    """Remove every item from the queue."""
+    QueueRepository(db).clear()
     db.commit()
     return None
 

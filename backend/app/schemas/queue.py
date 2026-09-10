@@ -19,11 +19,14 @@ from .library import SongOut
 
 class QueueItemOut(BaseModel):
     id: int
-    song_id: int
+    song_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    item_type: str = "SONG"
     position: int
     status: str
     added_at: Optional[str] = None
     song: Optional[SongOut] = None
+    asset: Optional[dict] = None
 
 
 class AddQueueItemRequest(BaseModel):

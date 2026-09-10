@@ -82,14 +82,20 @@ def delete_playlist(playlist_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{playlist_id}/tracks", response_model=PlaylistTrackOut, status_code=201)
 def add_track(playlist_id: int, request: AddTrackRequest, db: Session = Depends(get_db)):
-    """Add a song from the Music Library to this playlist (append, or
-    insert at `position` if provided)."""
+    """Add either a Song or a Promo occurrence to a playlist."""
     repo = PlaylistRepository(db)
+    if not request.is_valid_reference:
+        raise HTTPException(status_code=400, detail="Provide exactly one of song_id or asset_id.")
     try:
-        track = repo.add_track(playlist_id, request.song_id, request.position)
+        if request.asset_id is not None:
+            track = repo.add_asset(playlist_id, request.asset_id, request.position)
+        else:
+            track = repo.add_track(playlist_id, request.song_id, request.position)
     except PlaylistNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SongNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     db.commit()
     return track.to_dict(include_song=True)

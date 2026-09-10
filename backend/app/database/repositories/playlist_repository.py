@@ -20,7 +20,7 @@ from typing import Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import Playlist, PlaylistTrack, Song
+from ..models import Asset, Playlist, PlaylistTrack, Song
 
 
 class PlaylistNotFoundError(Exception):
@@ -56,7 +56,7 @@ class PlaylistRepository:
         stmt = (
             select(Playlist)
             .where(Playlist.id == playlist_id)
-            .options(selectinload(Playlist.tracks).selectinload(PlaylistTrack.song))
+            .options(selectinload(Playlist.tracks).selectinload(PlaylistTrack.song), selectinload(Playlist.tracks).selectinload(PlaylistTrack.asset))
         )
         return self.db.execute(stmt).scalar_one_or_none()
 
@@ -128,6 +128,31 @@ class PlaylistRepository:
         track = PlaylistTrack(
             playlist_id=playlist_id,
             song_id=song_id,
+            position=insert_at,
+            added_at=datetime.datetime.utcnow(),
+        )
+        self.db.add(track)
+        self._touch(playlist_id)
+        self.db.flush()
+        return track
+
+    def add_asset(self, playlist_id: int, asset_id: int, position: Optional[int] = None) -> PlaylistTrack:
+        """Insert a Promo/asset occurrence into the playlist."""
+        if self.get_by_id(playlist_id) is None:
+            raise PlaylistNotFoundError(f"No playlist with id {playlist_id}.")
+        if self.db.get(Asset, asset_id) is None:
+            raise ValueError(f"No asset with id {asset_id}.")
+
+        existing = list(self.list_tracks(playlist_id))
+        count = len(existing)
+        insert_at = count if position is None else min(max(position, 0), count)
+        for track in existing[insert_at:]:
+            track.position += 1
+
+        track = PlaylistTrack(
+            playlist_id=playlist_id,
+            song_id=None,
+            asset_id=asset_id,
             position=insert_at,
             added_at=datetime.datetime.utcnow(),
         )

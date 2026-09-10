@@ -26,14 +26,12 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ..services.library_service import scan_folder_sync
+from ..services.storage_paths import imported_music_root
 
 router = APIRouter(
     prefix="/api/library",
     tags=["music-library-import"],
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-IMPORTED_MUSIC_ROOT = PROJECT_ROOT / "data" / "imported_music"
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav"}
 
@@ -99,11 +97,11 @@ async def import_music_files(
     if not relative_paths:
         relative_paths = [upload.filename or "" for upload in files]
 
-    IMPORTED_MUSIC_ROOT.mkdir(parents=True, exist_ok=True)
+    imported_root = imported_music_root()
 
     # Every browser import gets an isolated batch directory.
     # This prevents one import from overwriting another import's files.
-    batch_dir = IMPORTED_MUSIC_ROOT / uuid.uuid4().hex
+    batch_dir = imported_root / uuid.uuid4().hex
     batch_dir.mkdir(parents=True, exist_ok=True)
 
     saved = 0

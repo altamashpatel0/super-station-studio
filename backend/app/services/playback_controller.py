@@ -33,13 +33,6 @@ class PlaybackController:
     making TwoDeckEngine + CrossfadeController the production playback path.
     Content selection remains outside this class.
     """
-    _PRIORITY = {
-        PlaybackSource.MANUAL: 100,
-        PlaybackSource.SCHEDULE: 80,
-        PlaybackSource.ASSET: 60,
-        PlaybackSource.QUEUE: 40,
-    }
-
     def __init__(
         self,
         engine: AudioEngine | TwoDeckEngine,
@@ -147,12 +140,22 @@ class PlaybackController:
         with self._lock:
             previous = self._active_source
             if previous is not None and previous != source:
-                if self._PRIORITY[source] < self._PRIORITY[previous]:
-                    raise PlaybackControllerError(
-                        f"{source.value} playback is blocked while {previous.value} playback owns the station."
-                    )
+                # Station playout follows a strict "last valid request wins"
+                # rule. Manual, queue, asset and scheduled playback may all
+                # replace the currently active source. Notify subscribers
+                # first so they can persist the previous item as SKIPPED and
+                # clear source-specific runtime state, then stop the current
+                # deck before loading the replacement.
                 self._notify_preempt(previous, source)
                 self._cancel_crossfade_locked()
+                try:
+                    self.engine.stop()
+                except Exception:
+                    # The engine may already be STOPPED/ERROR after a rapid
+                    # transition. The new request should still be allowed to
+                    # attempt playback; its starter below will surface a real
+                    # load/play failure if one exists.
+                    logger.debug("Previous playback was already stopped during source replacement.", exc_info=True)
 
             self._generation += 1
             self._active_source = source
@@ -188,6 +191,27 @@ class PlaybackController:
             self._crossfade_started_generation = None
             if file_path:
                 self._start_monitor_locked()
+
+    def preload_track(self, file_path: Optional[str]) -> None:
+        """Best-effort background decode of a future track."""
+        if not file_path:
+            return
+        with self._lock:
+            engine = self.engine
+            try:
+                engine.preload_track(file_path)
+            except Exception:
+                logger.debug("Queue next-track preload failed for %s", file_path, exc_info=True)
+
+    def pause(self) -> PlaybackStatus:
+        """Pause the currently active playback without changing its owner."""
+        with self._lock:
+            return self.engine.pause()
+
+    def resume(self) -> PlaybackStatus:
+        """Resume the currently active playback without changing its owner."""
+        with self._lock:
+            return self.engine.resume()
 
     def stop(self, source: Optional[PlaybackSource] = None) -> PlaybackStatus:
         with self._lock:

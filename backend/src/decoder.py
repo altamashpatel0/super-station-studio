@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -77,7 +78,51 @@ class DecodedAudio:
 
 
 class AudioDecoder:
-    """Validates and decodes local audio files into `DecodedAudio`."""
+    """Validates and decodes local audio files into `DecodedAudio`.
+
+    The decoder keeps a single optional *next-track* cache. Queue playback
+    can ask for the following song while the current song is still playing,
+    so the potentially expensive PyAV decode happens off the audio/end-event
+    path. Keeping only one decoded track bounds memory usage on low-end PCs.
+    """
+
+    def __init__(self) -> None:
+        self._cache_lock = threading.RLock()
+        self._cached_audio: DecodedAudio | None = None
+        self._preloading_path: str | None = None
+
+    def preload(self, file_path: str) -> None:
+        """Decode one future track in the background and cache it.
+
+        This method is best-effort: preload failures are logged and never
+        affect the currently playing track. Only one track is retained.
+        """
+        if not file_path:
+            return
+        with self._cache_lock:
+            if self._cached_audio is not None and self._cached_audio.file_path == file_path:
+                return
+            if self._preloading_path == file_path:
+                return
+            self._preloading_path = file_path
+
+        def worker() -> None:
+            try:
+                decoded = self.decode(file_path, use_cache=False)
+                with self._cache_lock:
+                    self._cached_audio = decoded
+            except Exception:
+                logger.debug("Background preload failed for '%s'.", file_path, exc_info=True)
+            finally:
+                with self._cache_lock:
+                    if self._preloading_path == file_path:
+                        self._preloading_path = None
+
+        threading.Thread(
+            target=worker,
+            name="AudioDecoderPreload",
+            daemon=True,
+        ).start()
 
     @staticmethod
     def supported_extensions() -> Iterable[str]:
@@ -111,7 +156,7 @@ class AudioDecoder:
                 f"'{file_path}'. Supported formats: {supported}"
             )
 
-    def decode(self, file_path: str) -> DecodedAudio:
+    def decode(self, file_path: str, *, use_cache: bool = True) -> DecodedAudio:
         """
         Decode an audio file fully into memory.
 
@@ -128,6 +173,13 @@ class AudioDecoder:
                 could not actually be decoded (corrupt/invalid data).
         """
         self.validate_file(file_path)
+
+        if use_cache:
+            with self._cache_lock:
+                cached = self._cached_audio
+                if cached is not None and cached.file_path == file_path:
+                    self._cached_audio = None
+                    return cached
 
         try:
             container = av.open(file_path)

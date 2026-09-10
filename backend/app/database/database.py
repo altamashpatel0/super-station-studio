@@ -26,6 +26,7 @@ from .migrations.add_asset_priority_cooldown import (
 )
 from .migrations.add_playback_history import upgrade_playback_history
 from .migrations.add_schedule_date_range import upgrade_schedule_date_range
+from .migrations.add_promo_playlist_support import upgrade_promo_playlist_support
 from . import playback_history_models  # noqa: F401
 
 DEFAULT_DB_PATH = os.path.join(
@@ -38,10 +39,15 @@ DEFAULT_DB_PATH = os.path.join(
 def _make_engine(db_url: str | None = None):
     url = db_url or os.environ.get("MUSIC_LIBRARY_DB_URL")
     if not url:
-        os.makedirs(os.path.dirname(DEFAULT_DB_PATH), exist_ok=True)
-        url = f"sqlite:///{DEFAULT_DB_PATH}"
+        env_path = os.environ.get("MUSIC_LIBRARY_DB_PATH")
+        path = env_path.strip() if env_path else DEFAULT_DB_PATH
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        # SQLAlchemy's SQLite URL accepts forward slashes on Windows and
+        # avoids backslash escape ambiguity in generated URLs.
+        path = os.path.abspath(path).replace("\\", "/")
+        url = f"sqlite:///{path}"
 
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    connect_args = {"check_same_thread": False, "timeout": 10} if url.startswith("sqlite") else {}
     new_engine = create_engine(url, connect_args=connect_args, future=True)
 
     if url.startswith("sqlite"):
@@ -50,6 +56,9 @@ def _make_engine(db_url: str | None = None):
             cursor = dbapi_connection.cursor()
             try:
                 cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=10000")
             finally:
                 cursor.close()
 
@@ -80,6 +89,7 @@ def init_db() -> None:
     upgrade_asset_priority_cooldown(engine)
     upgrade_playback_history(engine)
     upgrade_schedule_date_range(engine)
+    upgrade_promo_playlist_support(engine)
 
 
 def reset_engine(db_url: str) -> None:

@@ -214,22 +214,45 @@ class LiveStationMonitor:
                 continue
 
             queued_count += 1
-            song = item.song
-            if song is None:
-                continue
-
-            result.append(
-                {
-                    "queue_item_id": item.id,
-                    "position": item.position,
-                    "kind": "SONG",
-                    "id": song.id,
-                    "title": song.title,
-                    "artist": song.artist,
-                    "album": song.album,
-                    "duration_seconds": round(float(song.duration or 0.0), 3),
-                }
-            )
+            # Queue items can reference either a Song or an Asset (PROMO).
+            # The live snapshot must expose both so the Dashboard/queue UI
+            # reflects the exact runtime queue, not just songs.
+            if item.song is not None:
+                song = item.song
+                result.append(
+                    {
+                        "queue_item_id": item.id,
+                        "position": item.position,
+                        "kind": "SONG",
+                        "item_type": "SONG",
+                        "id": song.id,
+                        "song_id": song.id,
+                        "title": song.title,
+                        "artist": song.artist,
+                        "album": song.album,
+                        "duration_seconds": round(float(song.duration or 0.0), 3),
+                    }
+                )
+            elif item.asset is not None:
+                asset = item.asset
+                asset_type = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+                result.append(
+                    {
+                        "queue_item_id": item.id,
+                        "position": item.position,
+                        "kind": asset_type,
+                        "item_type": asset_type,
+                        "id": asset.id,
+                        "asset_id": asset.id,
+                        "title": asset.name,
+                        "name": asset.name,
+                        "artist": asset.category or "Promo",
+                        "album": None,
+                        "category": asset.category,
+                        "asset": asset.to_dict(),
+                        "duration_seconds": round(float(asset.duration or 0.0), 3),
+                    }
+                )
 
             if len(result) >= self.MAX_NEXT_ITEMS:
                 # Continue counting real queued items only when needed?

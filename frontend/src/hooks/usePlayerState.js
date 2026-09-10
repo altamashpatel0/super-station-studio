@@ -77,9 +77,9 @@ export function usePlayerState({ intervalMs = 1000 } = {}) {
     id: item.id ?? item.song_id ?? item.asset_id,
     queue_item_id: item.queue_item_id,
     title: item.title ?? item.name ?? item.song_title ?? `Queue item #${item.id ?? item.queue_item_id ?? "?"}`,
-    type: String(item.kind || item.content_type || item.asset_type || "SONG").toLowerCase(),
+    type: String(item.item_type || item.kind || item.content_type || item.asset_type || (item.asset_id != null ? "PROMO" : "SONG")).toLowerCase(),
     duration: Number(item.duration_seconds ?? item.duration ?? 0),
-    artist: item.artist ?? item.artist_name ?? "",
+    artist: item.artist ?? item.artist_name ?? item.asset?.category ?? (String(item.item_type || item.kind || "").toUpperCase() === "PROMO" ? "Promo" : ""),
   })), [live.data]);
 
   const run = useCallback(async (operation) => {

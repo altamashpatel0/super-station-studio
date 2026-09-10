@@ -11,6 +11,7 @@ V0.8 fix:
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +63,7 @@ async def lifespan(app: FastAPI):
         asset_manager,
         controller=controller,
         queue_manager=queue_manager,
+        history_recorder=history,
     )
     recovery = SchedulerFailureRecovery(runtime)
     station = StationRuntime(runtime, recovery=recovery)
@@ -84,10 +86,8 @@ app = FastAPI(title="Music Library / Playout Backend", lifespan=lifespan)
 # Vite proxy path. No credentials/cookies are used by this local app.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=[],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -97,7 +97,10 @@ app.add_middleware(
 @app.get("/api/health")
 def health_check() -> dict:
     """Liveness probe used by the test suite and ops tooling."""
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "instance_id": os.environ.get("SSS_INSTANCE_TOKEN", ""),
+    }
 
 
 # Core application routers

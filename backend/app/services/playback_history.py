@@ -123,6 +123,26 @@ class PlaybackHistoryRecorder:
         except Exception:
             return
 
+    def finish_active_as_skipped(self, reason: str) -> None:
+        """Close the current history row when a bounded schedule window ends.
+
+        A schedule can intentionally end in the middle of a track. The audio
+        engine is paused at that boundary rather than naturally completing the
+        file, so the history row must be finalized explicitly.
+        """
+        now = datetime.datetime.utcnow()
+        with self._lock:
+            history_id = self._active_history_id
+            self._active_history_id = None
+            self._active_file_path = None
+        if history_id is None:
+            return
+        try:
+            self._finish_history_row(history_id, "SKIPPED", now, reason)
+        except Exception:
+            # History must never interfere with the scheduler boundary.
+            return
+
     @property
     def running(self) -> bool:
         with self._lock:

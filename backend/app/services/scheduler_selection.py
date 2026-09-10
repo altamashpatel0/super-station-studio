@@ -178,20 +178,22 @@ def _select_playlist(db: Session, schedule: Schedule) -> SelectionResult:
     if playlist is None:
         raise TargetNotFoundError(f"No playlist with id {schedule.target_id}.")
 
+    # A scheduled playlist may contain both Songs and Promo assets.
+    # SchedulerRuntime delegates the actual playlist materialization to
+    # QueueManager, so selection only needs to confirm that at least one
+    # playable occurrence exists.
     stmt = (
         select(PlaylistTrack)
-        .join(PlaylistTrack.song)
-        .where(
-            PlaylistTrack.playlist_id == playlist.id,
-            Song.enabled.is_(True),
-        )
+        .where(PlaylistTrack.playlist_id == playlist.id)
         .order_by(PlaylistTrack.position.asc(), PlaylistTrack.id.asc())
     )
     tracks = db.execute(stmt).scalars().all()
 
     for track in tracks:
-        if track.song is not None and _file_exists(track.song.file_path):
+        if track.song is not None and track.song.enabled and _file_exists(track.song.file_path):
             return _song_result(schedule, track.song, "PLAYLIST_TRACK")
+        if track.asset is not None and track.asset.enabled and _file_exists(track.asset.file_path):
+            return _asset_result(schedule, track.asset)
 
     raise NoEligiblePlaylistTrackError(
         f"Playlist {playlist.id} has no eligible tracks."
@@ -220,6 +222,8 @@ def select_for_schedule(
         return _select_asset(db, schedule, AssetType.JINGLE, current_time)
     if target == "ADVERTISEMENT":
         return _select_asset(db, schedule, AssetType.ADVERTISEMENT, current_time)
+    if target == "PROMO":
+        return _select_asset(db, schedule, AssetType.PROMO, current_time)
     if target == "PLAYLIST":
         return _select_playlist(db, schedule)
 

@@ -20,12 +20,12 @@ from ..database.database import get_db
 from ..database.repositories.asset_repository import DuplicateAssetError
 from ..schemas.assets import AssetOut
 from ..services import asset_service
+from ..services.storage_paths import asset_storage_root
 from ..services.asset_service import InvalidAssetError
 
 router = APIRouter(prefix="/api/assets", tags=["assets-upload"])
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "storage" / "assets"
 
 
 @router.post("/upload", response_model=AssetOut, status_code=201)
@@ -45,8 +45,8 @@ async def upload_asset(
     if not suffix:
         raise HTTPException(status_code=400, detail="Audio file must have a file extension.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    destination = UPLOAD_DIR / f"{uuid4().hex}{suffix}"
+    upload_dir = asset_storage_root()
+    destination = upload_dir / f"{uuid4().hex}{suffix}"
     size = 0
 
     try:

@@ -148,6 +148,10 @@ class Player:
     # Transport controls
     # ------------------------------------------------------------------
 
+    def preload(self, file_path: str) -> None:
+        """Best-effort background decode of a future track."""
+        self._decoder.preload(file_path)
+
     def play(self) -> None:
         """Start (or restart from the current position) playback."""
         with self._lock:

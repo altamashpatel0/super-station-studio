@@ -156,6 +156,11 @@ class AssetPlaybackManager:
         # --------------------------------------------------------------
 
         try:
+            # PlaybackController can synchronously notify QueueManager while
+            # replacing the current source. Release any request-scoped DB
+            # transaction before entering the audio operation so the callback
+            # can write through its own session without SQLite lock contention.
+            db.commit()
             if self._controller is not None:
                 status = self._controller.start_track(
                     source,

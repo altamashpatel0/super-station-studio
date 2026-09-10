@@ -11,6 +11,7 @@ from app.services.scheduler_runtime import (
     SchedulerRuntimeError,
 )
 from app.services.scheduler_selection import SelectionResult
+from app.services.playback_controller import PlaybackSource
 
 
 def _selection(
@@ -210,3 +211,59 @@ def test_start_selection_failure_is_wrapped(monkeypatch):
         runtime.tick(dt.datetime(2026, 8, 18, 9, 30))
 
     assert runtime.get_last_error() == "device failed"
+
+
+def test_schedule_window_end_pauses_and_releases_scheduled_playback(monkeypatch):
+    runtime, _, _, db = _runtime()
+    controller = MagicMock()
+    controller.active_source = PlaybackSource.SCHEDULE
+    status = MagicMock()
+    status.state.name = "PLAYING"
+    controller.engine.get_status.return_value = status
+    history = MagicMock()
+
+    runtime = SchedulerRuntime(
+        MagicMock(),
+        MagicMock(),
+        controller=controller,
+        history_recorder=history,
+        session_factory=lambda: _db_context(db),
+        poll_interval_seconds=0.01,
+    )
+    runtime._started_occurrence = (1, dt.datetime(2026, 8, 18, 11, 50))
+
+    monkeypatch.setattr(
+        "app.services.scheduler_runtime.ClockWheel.get_current_schedule",
+        lambda self, now: None,
+    )
+
+    runtime.tick(dt.datetime(2026, 8, 18, 11, 56))
+
+    controller.pause.assert_called_once()
+    controller.release_if_owned.assert_called_once_with(PlaybackSource.SCHEDULE)
+    history.finish_active_as_skipped.assert_called_once()
+    assert runtime._started_occurrence is None
+
+
+def test_schedule_window_end_does_not_touch_manual_playback(monkeypatch):
+    runtime, _, _, db = _runtime()
+    controller = MagicMock()
+    controller.active_source = PlaybackSource.MANUAL
+    runtime = SchedulerRuntime(
+        MagicMock(),
+        MagicMock(),
+        controller=controller,
+        session_factory=lambda: _db_context(db),
+        poll_interval_seconds=0.01,
+    )
+    runtime._started_occurrence = (1, dt.datetime(2026, 8, 18, 11, 50))
+
+    monkeypatch.setattr(
+        "app.services.scheduler_runtime.ClockWheel.get_current_schedule",
+        lambda self, now: None,
+    )
+
+    runtime.tick(dt.datetime(2026, 8, 18, 11, 56))
+
+    controller.pause.assert_not_called()
+    controller.release_if_owned.assert_not_called()

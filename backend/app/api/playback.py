@@ -18,6 +18,7 @@ which this module looks up via `SongRepository` to get the on-disk
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.models import AudioEngineError
@@ -30,6 +31,13 @@ from .playback_controller_provider import get_playback_controller
 from ..services.playback_controller import PlaybackControllerError, PlaybackSource
 
 router = APIRouter(prefix="/api/playback", tags=["playback"])
+
+
+class RestorePlaybackRequest(BaseModel):
+    file_path: str = Field(..., min_length=1)
+    position_seconds: float = Field(default=0.0, ge=0.0)
+    volume: float | None = Field(default=None, ge=0.0, le=1.0)
+
 
 
 @router.post("/play-song")
@@ -56,10 +64,33 @@ def play_song(request: PlayRequest, db: Session = Depends(get_db)):
     return status.to_dict()
 
 
+@router.post("/restore")
+def restore_playback(request: RestorePlaybackRequest):
+    """Restore a previously interrupted track at its saved position.
+
+    This endpoint is used only by the desktop shell during startup. It does
+    not increment play counts or create a new history entry.
+    """
+    controller = get_playback_controller()
+    try:
+        status = controller.start_track(
+            PlaybackSource.MANUAL,
+            request.file_path,
+        )
+        if request.volume is not None:
+            controller.engine.set_volume(request.volume)
+        position = min(float(request.position_seconds), float(status.duration_seconds))
+        if position > 0:
+            controller.engine.seek(position)
+        return controller.get_status()
+    except (AudioEngineError, PlaybackControllerError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/pause")
 def pause():
     try:
-        return get_playback_controller().engine.pause().to_dict()
+        return get_playback_controller().pause().to_dict()
     except AudioEngineError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -67,7 +98,7 @@ def pause():
 @router.post("/resume")
 def resume():
     try:
-        return get_playback_controller().engine.resume().to_dict()
+        return get_playback_controller().resume().to_dict()
     except AudioEngineError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

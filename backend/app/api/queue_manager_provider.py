@@ -17,6 +17,7 @@ from typing import Optional
 from ..services.queue_manager import QueueManager
 from .engine_provider import get_engine
 from .playback_controller_provider import get_playback_controller
+from .asset_playback_provider import get_asset_playback_manager
 
 _queue_manager: Optional[QueueManager] = None
 
@@ -24,7 +25,7 @@ _queue_manager: Optional[QueueManager] = None
 def get_queue_manager() -> QueueManager:
     global _queue_manager
     if _queue_manager is None:
-        _queue_manager = QueueManager(get_engine(), get_playback_controller())
+        _queue_manager = QueueManager(get_engine(), get_playback_controller(), get_asset_playback_manager())
     return _queue_manager
 
 

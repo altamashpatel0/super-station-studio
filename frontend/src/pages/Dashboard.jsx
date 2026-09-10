@@ -22,7 +22,115 @@ function artworkFor(item) {
   return id == null ? null : api.getSongArtworkUrl(id);
 }
 
-export default function Dashboard({ player }) {
+
+function parseClock(value) {
+  if (!value) return null;
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (!match) return null;
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = Number(match[3] || 0);
+  const meridiem = match[4]?.toUpperCase();
+
+  if (meridiem) {
+    if (hour === 12) hour = 0;
+    if (meridiem === "PM") hour += 12;
+  }
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  return { hour, minute, second };
+}
+
+function dateOnly(value) {
+  if (!value) return null;
+  const text = String(value).slice(0, 10);
+  const parts = text.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function nextScheduleEvent(scheduleList, now = new Date()) {
+  let best = null;
+
+  for (const schedule of scheduleList) {
+    const clock = parseClock(schedule?.start_time);
+    if (!schedule?.enabled || !clock) continue;
+
+    const startDate = dateOnly(schedule.start_date);
+    const endDate = dateOnly(schedule.end_date);
+    const days = Array.isArray(schedule.days_of_week) ? schedule.days_of_week.map(Number) : [];
+
+    // Check the next 8 days. This handles recurring schedules correctly,
+    // including schedules whose time has already passed today.
+    for (let offset = 0; offset <= 7; offset += 1) {
+      const candidate = new Date(now);
+      candidate.setHours(0, 0, 0, 0);
+      candidate.setDate(candidate.getDate() + offset);
+
+      if (startDate && candidate < startDate) continue;
+      if (endDate && candidate > endDate) continue;
+
+      // JavaScript: Sunday=0; scheduler stores Monday=0 ... Sunday=6.
+      const schedulerDay = (candidate.getDay() + 6) % 7;
+      if (days.length && !days.includes(schedulerDay)) continue;
+
+      candidate.setHours(clock.hour, clock.minute, clock.second, 0);
+      if (candidate <= now) continue;
+
+      if (!best || candidate < best.start) {
+        best = { schedule, start: candidate };
+      }
+    }
+  }
+
+  return best;
+}
+
+function formatEventTime(date) {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatCountdown(milliseconds) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function scheduleOccurrence(schedule, now = new Date()) {
+  if (!schedule?.enabled) return null;
+  const startClock = parseClock(schedule.start_time);
+  const endClock = parseClock(schedule.end_time);
+  if (!startClock || !endClock) return null;
+  const startDate = dateOnly(schedule.start_date);
+  const endDate = dateOnly(schedule.end_date);
+  const days = Array.isArray(schedule.days_of_week) ? schedule.days_of_week.map(Number) : [];
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const day = new Date(now); day.setHours(0,0,0,0); day.setDate(day.getDate()+offset);
+    if (startDate && day < startDate) continue;
+    if (endDate && day > endDate) continue;
+    const schedulerDay = (day.getDay()+6)%7;
+    if (days.length && !days.includes(schedulerDay)) continue;
+    const start = new Date(day); start.setHours(startClock.hour,startClock.minute,startClock.second,0);
+    const end = new Date(day); end.setHours(endClock.hour,endClock.minute,endClock.second,0);
+    if (end <= start) continue;
+    if (now >= start && now < end) return {phase:'LIVE',start,end};
+    if (start > now) return {phase:'UPCOMING',start,end};
+  }
+  return {phase:'ENDED',start:null,end:null};
+}
+
+function formatScheduleDateTime(date) {
+  if (!date) return '—';
+  return date.toLocaleString([], {weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+export default function Dashboard({ player, stationName, onNavigate }) {
   const {
     track, queue, isPlaying, elapsed, volume, crossfading,
     crossfadeProgress, activeDeck, crossfadeSourceDeck, crossfadeTargetDeck,
@@ -33,6 +141,7 @@ export default function Dashboard({ player }) {
   const [stats, setStats] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState([]);
+  const [clockNow, setClockNow] = useState(() => new Date());
   const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
@@ -56,10 +165,42 @@ export default function Dashboard({ player }) {
     return () => { alive = false; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const enabledSchedules = useMemo(
     () => schedules.filter((schedule) => schedule.enabled),
     [schedules]
   );
+
+  const nextEvent = useMemo(
+    () => nextScheduleEvent(enabledSchedules, clockNow),
+    [enabledSchedules, clockNow]
+  );
+
+  const nextEventCountdown = nextEvent
+    ? formatCountdown(nextEvent.start.getTime() - clockNow.getTime())
+    : null;
+
+  const scheduleCards = useMemo(() => enabledSchedules
+    .map((schedule) => ({ schedule, timing: scheduleOccurrence(schedule, clockNow) }))
+    .filter((entry) => entry.timing && entry.timing.phase !== 'ENDED')
+    .sort((a,b) => {
+      const rank={LIVE:0,UPCOMING:1};
+      const p=rank[a.timing.phase]-rank[b.timing.phase];
+      if(p) return p;
+      return (a.timing.start?.getTime()||0)-(b.timing.start?.getTime()||0);
+    }), [enabledSchedules, clockNow]);
+
+  const openSchedulerWindow = () => {
+    if (typeof onNavigate === "function") {
+      onNavigate("scheduleCenter");
+      return;
+    }
+    window.location.hash = "#schedule-center";
+  };
 
   const listeners = numberOf(
     player.raw?.listeners,
@@ -85,7 +226,7 @@ export default function Dashboard({ player }) {
       <section className="dashboard__stats">
         <div className="stat">
           <span className="stat__icon stat__icon--red"><RadioTower size={17} /></span>
-          <div><small>STATION</small><strong>{player.station?.name || "Super Station Studio"}</strong><em className={isPlaying ? "live" : ""}>{isPlaying ? "PLAYING" : "STANDBY"}</em></div>
+          <div><small>STATION</small><strong>{stationName || player.station?.name || "Super Station Studio"}</strong><em className={isPlaying ? "live" : ""}>{isPlaying ? "PLAYING" : "STANDBY"}</em></div>
         </div>
         <div className="stat">
           <span className="stat__icon stat__icon--green"><Headphones size={17} /></span>
@@ -138,7 +279,7 @@ export default function Dashboard({ player }) {
             <section className="panel compact-panel">
               <header className="panel__header">
                 <div><span className="panel__eyebrow">LIVE HISTORY</span><h2>Recently Played</h2></div>
-                <Clock3 size={17} />
+                <div className="panel__header-action"><Clock3 size={16} /><button type="button" onClick={openSchedulerWindow}>View all</button></div>
               </header>
               <div className="history-list">
                 {recentlyPlayed.slice(0, 5).map((item, index) => (
@@ -156,17 +297,18 @@ export default function Dashboard({ player }) {
             <section className="panel compact-panel">
               <header className="panel__header">
                 <div><span className="panel__eyebrow">AUTOMATION</span><h2>Scheduler</h2></div>
-                <span className="panel__counter">{enabledSchedules.length} ENABLED</span>
+                <div className="panel__header-action"><span className="panel__counter">{enabledSchedules.length} ENABLED</span><button type="button" onClick={openSchedulerWindow}>Open</button></div>
               </header>
-              <div className="schedule-list">
-                {enabledSchedules.slice(0, 5).map((schedule) => (
-                  <div className="schedule-row" key={schedule.id}>
-                    <span className="mono">{schedule.start_time}</span>
-                    <div><b>{schedule.name}</b><small>{schedule.target_type} · {schedule.target_id ?? "—"}</small></div>
-                    <span className="schedule-dot" />
-                  </div>
-                ))}
-                {!enabledSchedules.length && <div className="empty-small">No enabled schedules.</div>}
+              <div className="schedule-list dashboard-schedule-list">
+                {scheduleCards.length ? scheduleCards.slice(0,4).map(({schedule,timing}) => {
+                  const live=timing.phase==='LIVE';
+                  const remaining=live ? timing.end.getTime()-clockNow.getTime() : timing.start.getTime()-clockNow.getTime();
+                  return <button type="button" key={schedule.id} className={`dashboard-schedule-card dashboard-schedule-card--${timing.phase.toLowerCase()}`} onClick={() => { sessionStorage.setItem("sss-open-schedule-id", String(schedule.id)); openSchedulerWindow(); }}>
+                    <span className="dashboard-schedule-card__time"><b>{schedule.start_time}</b><small>→ {schedule.end_time}</small></span>
+                    <span className="dashboard-schedule-card__main"><strong>{schedule.name}</strong><small>{schedule.target_type} · {live ? 'RUNNING NOW' : formatScheduleDateTime(timing.start)}</small></span>
+                    <span className="dashboard-schedule-card__timer"><small>{live ? 'ENDS IN' : 'STARTS IN'}</small><b>{formatCountdown(remaining)}</b></span>
+                  </button>;
+                }) : <div className="empty-small">No upcoming schedules.</div>}
               </div>
             </section>
           </div>
@@ -185,6 +327,8 @@ export default function Dashboard({ player }) {
           <NextUpPanel queue={queue} onSelect={playFromQueue} onClear={handleClearQueue} clearing={clearing} />
         </aside>
       </section>
+
+
 
       <section className="dashboard__footer-cards">
         <div className="mini-card"><Activity size={16} /><span>Crossfade</span><b>{crossfading ? `${Math.round(crossfadeProgress * 100)}%` : `Deck ${activeDeck || "A"} ready`}</b></div>

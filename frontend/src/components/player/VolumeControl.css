@@ -81,3 +81,12 @@
   color: var(--text-tertiary);
   text-align: right;
 }
+
+/* ===== Production volume alignment ===== */
+.panel--now .volume{
+  box-sizing:border-box;
+  min-width:0;
+}
+.panel--now .volume__slider-wrap{
+  min-width:0;
+}

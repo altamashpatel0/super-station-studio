@@ -74,6 +74,10 @@ class AudioEngine:
         self._player.play()
         return self.get_status()
 
+    def preload_track(self, file_path: str) -> None:
+        """Best-effort background decode for a future queue track."""
+        self._player.preload(file_path)
+
     def pause(self) -> PlaybackStatus:
         """Pause playback, retaining position."""
         self._player.pause()

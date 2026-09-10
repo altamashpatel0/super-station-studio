@@ -1,0 +1,225 @@
+/* Schedule Center — responsive control-room layout */
+/* This page is itself the scroll container. It is not a pageshell__body, so the
+   global .pageshell { overflow:hidden } must never clip the lower sections. */
+.schedule-center-page{
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  min-height:0;
+  height:100%;
+  padding:clamp(14px,1.25vw,24px) clamp(14px,1.6vw,28px) clamp(24px,2.2vw,36px);
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.schedule-center-page.pageshell{
+  display:block;
+  flex-direction:initial;
+}
+.schedule-center-page *{box-sizing:border-box;min-width:0}
+
+.schedule-center-head{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  gap:20px;padding:2px 0 clamp(12px,1.2vw,18px);
+}
+.schedule-center-head>div:first-child{min-width:0;flex:1}
+.schedule-center-kicker{font-size:clamp(7px,.55vw,9px);font-weight:900;letter-spacing:.16em;color:var(--air-red)}
+.schedule-center-head h1{margin:4px 0 5px;color:var(--text-primary);font-size:clamp(20px,1.5vw,27px);line-height:1.1}
+.schedule-center-head p{margin:0;max-width:820px;color:var(--text-tertiary);font-size:clamp(10px,.7vw,12px);line-height:1.5}
+.schedule-center-head-actions{display:flex;gap:8px;flex:0 0 auto;align-items:center}
+
+.schedule-center-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.schedule-center-metrics>div{
+  min-width:0;min-height:58px;height:auto;display:flex;align-items:center;gap:10px;
+  padding:10px 13px;border:1px solid var(--hairline);border-radius:11px;
+  background:var(--panel);box-shadow:var(--shadow-panel);color:var(--accent-blue)
+}
+.schedule-center-metrics span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.schedule-center-metrics small{font-size:7px;letter-spacing:.12em;font-weight:800;color:var(--text-tertiary)}
+.schedule-center-metrics b{font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.schedule-center-tabs{
+  display:flex;gap:6px;padding:5px;border:1px solid var(--hairline);background:var(--panel);
+  border-radius:11px;margin-bottom:10px;min-width:0
+}
+.schedule-center-tabs button{
+  flex:0 0 auto;border:1px solid transparent;background:transparent;color:var(--text-secondary);
+  border-radius:8px;padding:9px 14px;display:flex;align-items:center;justify-content:center;
+  gap:7px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap
+}
+.schedule-center-tabs button.active{background:var(--accent-blue-dim);border-color:var(--blue-border);color:var(--accent-blue)}
+
+.schedule-board,.schedule-center-logs,.schedule-center-editor{
+  width:100%;max-width:100%;border:1px solid var(--hairline);background:var(--panel);
+  border-radius:14px;overflow:hidden;box-shadow:var(--shadow-panel);min-width:0
+}
+.schedule-board-head,.schedule-center-logs-head,.schedule-center-editor-head{
+  display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 16px;
+  border-bottom:1px solid var(--hairline);min-width:0
+}
+.schedule-board-head>div:first-child,.schedule-center-logs-head>div:first-child,.schedule-center-editor-head>div:first-child{min-width:0}
+.schedule-board-head h2,.schedule-center-logs-head h2,.schedule-center-editor-head h2{margin:3px 0 2px;font-size:15px;color:var(--text-primary)}
+.schedule-board-head p,.schedule-center-logs-head p{margin:0;color:var(--text-tertiary);font-size:9px;line-height:1.4}
+.schedule-day-tabs{display:flex;gap:5px;flex:0 0 auto}
+.schedule-day-tabs button{
+  min-width:86px;border:1px solid var(--hairline);background:var(--panel-inset);color:var(--text-secondary);
+  border-radius:7px;padding:7px 12px;font-size:9px;font-weight:800;cursor:pointer;white-space:nowrap
+}
+.schedule-day-tabs button.active{border-color:var(--blue-border);background:var(--accent-blue-dim);color:var(--accent-blue)}
+
+/* The board grows with the viewport instead of using a fixed 330px box. */
+.schedule-agenda-list{
+  display:flex;flex-direction:column;gap:5px;padding:8px;
+  max-height:clamp(170px,25vh,330px);overflow:auto;
+  overscroll-behavior:contain;scrollbar-gutter:stable both-edges
+}
+.schedule-agenda-row{
+  width:100%;max-width:100%;display:grid;
+  grid-template-columns:minmax(70px,82px) minmax(60px,72px) minmax(0,1fr) minmax(120px,170px);
+  align-items:center;gap:10px;text-align:left;border:1px solid var(--hairline);
+  background:var(--panel-raised);border-radius:9px;padding:9px 11px;color:var(--text-primary);
+  cursor:pointer;transition:border-color .15s,background .15s;min-width:0
+}
+.schedule-agenda-row:hover,.schedule-agenda-row.focused{border-color:var(--blue-border);background:var(--accent-blue-dim)}
+.schedule-agenda-row.live{border-color:var(--green-border);background:var(--signal-green-dim)}
+.schedule-agenda-time{display:flex;flex-direction:column;font-family:var(--font-mono,monospace);min-width:0}
+.schedule-agenda-time b{font-size:12px;white-space:nowrap}.schedule-agenda-time small{font-size:8px;color:var(--text-tertiary);margin-top:2px;white-space:nowrap}
+.schedule-agenda-state{min-width:0}.schedule-agenda-state i{font-style:normal;font-size:8px;font-weight:900;color:var(--accent-blue);white-space:nowrap}
+.schedule-agenda-row.live .schedule-agenda-state i{color:var(--signal-green)}
+.schedule-agenda-main{min-width:0;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.schedule-agenda-main strong{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.schedule-agenda-main small{font-size:8px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.schedule-agenda-countdown{
+  min-width:0;border-left:1px solid var(--hairline);padding-left:10px;display:flex;
+  flex-direction:column;align-items:flex-end;gap:2px;overflow:hidden
+}
+.schedule-agenda-countdown small{font-size:7px;color:var(--text-tertiary);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.schedule-agenda-countdown b{font:800 11px var(--font-mono);color:var(--accent-blue);white-space:nowrap}
+.schedule-agenda-row.live .schedule-agenda-countdown b{color:var(--signal-green)}
+
+.schedule-center-empty{min-height:130px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--text-tertiary);font-size:9px;text-align:center;padding:20px}
+.schedule-center-empty strong{color:var(--text-primary);font-size:11px}
+.schedule-center-empty button{margin-top:4px;border:1px solid var(--blue-border);background:var(--accent-blue-dim);color:var(--accent-blue);border-radius:7px;padding:7px 10px;font-size:9px;font-weight:800;cursor:pointer}
+.schedule-center-error{margin:8px;padding:9px 11px;border:1px solid var(--danger-border);border-radius:8px;color:var(--air-red);background:var(--air-red-dim);font-size:9px}
+
+/* Embedded Scheduler / Logs: remove nested page chrome and let the parent control width. */
+.schedule-center-editor{margin-top:10px}
+.schedule-center-editor>.scheduler-page,.schedule-center-logs>.logs-page{
+  padding:0;width:100%;max-width:100%;min-width:0;height:auto;min-height:0;overflow:visible;
+}
+.schedule-center-editor>.scheduler-page.pageshell,.schedule-center-logs>.logs-page.pageshell{display:block}
+.schedule-center-editor>.scheduler-page>.pageshell__body,.schedule-center-logs>.logs-page>.pageshell__body{
+  padding:clamp(10px,1.2vw,16px);min-width:0;width:100%;max-width:100%;height:auto;min-height:0;overflow:visible;
+}
+.schedule-center-editor>.scheduler-page>.pageshell__body .scheduler-summary{display:none}
+.schedule-center-editor>.scheduler-page>.pageheader,.schedule-center-logs>.logs-page>.pageheader{display:none}
+.schedule-center-editor>.scheduler-page>.pageshell__body .scheduler-runtime-card{margin-bottom:10px}
+.schedule-center-logs-head{align-items:flex-start}
+.schedule-center-note{display:flex;align-items:center;gap:6px;color:var(--text-tertiary);font-size:9px;white-space:nowrap;flex:0 0 auto}
+.schedule-center-logs>.logs-page>.pageshell__body .logs-page__actions{display:none}
+
+/* The manager list is an inner scroll region, while the Schedule Center itself
+   remains vertically scrollable. This prevents content from being cut off on
+   768px-tall laptops and avoids nested full-page clipping. */
+.schedule-center-editor .scheduler-page .schedule-list{
+  max-height:clamp(220px,42vh,520px);
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.schedule-center-editor .scheduler-page .scheduler-body{
+  min-height:0;
+}
+
+/* Prevent the embedded scheduler from forcing a page-wide horizontal scrollbar. */
+.schedule-center-editor .scheduler-body,.schedule-center-editor .schedule-list,.schedule-center-logs .logs-page__body,.schedule-center-logs .logs-table-wrap{width:100%;max-width:100%;min-width:0}
+.schedule-center-editor .schedule-row{min-width:0}
+
+@media (min-width:1600px){
+  .schedule-center-page{padding-left:clamp(18px,1.5vw,30px);padding-right:clamp(18px,1.5vw,30px)}
+  .schedule-agenda-list{max-height:min(28vh,330px)}
+}
+
+@media (max-width:1100px){
+  .schedule-center-head{align-items:flex-start}
+  .schedule-center-head-actions{width:auto}
+  .schedule-agenda-row{grid-template-columns:74px 64px minmax(0,1fr) 120px}
+}
+
+@media (max-width:900px){
+  .schedule-center-head{flex-direction:column;align-items:stretch}
+  .schedule-center-head-actions{width:100%}
+  .schedule-center-head-actions>*{flex:1;justify-content:center}
+  .schedule-board-head,.schedule-center-logs-head,.schedule-center-editor-head{align-items:flex-start;flex-direction:column}
+  .schedule-day-tabs{width:100%}
+  .schedule-day-tabs button{flex:1;min-width:0}
+  .schedule-center-note{align-self:flex-start}
+  .schedule-agenda-row{grid-template-columns:72px 64px minmax(0,1fr) 105px}
+}
+
+@media (max-width:700px){
+  .schedule-center-page{padding:10px 10px 20px}
+  .schedule-center-metrics{grid-template-columns:1fr;gap:7px}
+  .schedule-center-metrics>div{min-height:52px}
+  .schedule-center-tabs{width:100%}
+  .schedule-center-tabs button{flex:1;padding-left:8px;padding-right:8px}
+  .schedule-agenda-list{max-height:260px;overflow:auto;padding:7px}
+  .schedule-agenda-row{
+    grid-template-columns:62px minmax(0,1fr);
+    gap:6px 9px;padding:9px
+  }
+  .schedule-agenda-state{display:none}
+  .schedule-agenda-main{grid-column:2;grid-row:1;align-self:center}
+  .schedule-agenda-countdown{
+    grid-column:2;grid-row:2;align-items:flex-start;border-left:0;
+    border-top:1px solid var(--hairline);padding:6px 0 0;width:100%;
+  }
+  .schedule-agenda-countdown b{font-size:10px}
+  .schedule-center-editor>.scheduler-page>.pageshell__body,.schedule-center-logs>.logs-page>.pageshell__body{padding:9px}
+}
+
+@media (max-width:480px){
+  .schedule-center-head h1{font-size:20px}
+  .schedule-center-head p{font-size:10px}
+  .schedule-center-head-actions{flex-direction:column}
+  .schedule-center-head-actions>*{width:100%;flex:none}
+  .schedule-center-tabs button{font-size:9px;gap:5px}
+  .schedule-day-tabs button{font-size:8px;padding:7px 6px}
+  .schedule-board-head,.schedule-center-logs-head,.schedule-center-editor-head{padding:12px}
+  .schedule-agenda-time b{font-size:11px}
+  .schedule-agenda-main strong{font-size:10px}
+}
+
+@media (max-height:700px) and (min-width:701px){
+  .schedule-center-page{padding-top:9px;padding-bottom:16px}
+  .schedule-center-head{padding-bottom:10px}
+  .schedule-center-metrics>div{min-height:50px;padding-top:7px;padding-bottom:7px}
+  .schedule-agenda-list{max-height:190px}
+}
+
+
+/* Final viewport fitting rules */
+@media (min-width:1200px){
+  .schedule-center-page{padding-left:clamp(20px,2vw,32px);padding-right:clamp(20px,2vw,32px)}
+  .schedule-center-head{gap:28px}
+}
+@media (max-width:900px){
+  .schedule-center-page{padding:14px 14px 28px}
+  .schedule-center-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .schedule-center-head h1{font-size:clamp(20px,3vw,26px)}
+  .schedule-board-head,.schedule-center-editor-head,.schedule-center-logs-head{gap:12px}
+}
+@media (max-width:700px){
+  .schedule-center-page{padding:10px 10px 24px}
+  .schedule-center-metrics{grid-template-columns:1fr}
+  .schedule-center-metrics>div{min-height:50px}
+  .schedule-center-tabs{position:sticky;top:0;z-index:3;background:var(--panel);box-shadow:0 4px 14px rgba(0,0,0,.14)}
+}
+@media (max-height:760px) and (min-width:701px){
+  .schedule-center-head{padding-bottom:9px}
+  .schedule-center-metrics{margin-bottom:8px}
+  .schedule-center-metrics>div{min-height:48px;padding:8px 11px}
+  .schedule-agenda-list{max-height:170px}
+  .schedule-center-editor .scheduler-page .schedule-list{max-height:38vh}
+}

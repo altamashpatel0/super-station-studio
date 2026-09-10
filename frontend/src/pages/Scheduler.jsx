@@ -35,6 +35,7 @@ const TARGETS = [
   { key: 'PLAYLIST', label: 'Playlists', icon: ListMusic },
   { key: 'ADVERTISEMENT', label: 'Advertisements', icon: Megaphone },
   { key: 'JINGLE', label: 'Jingles', icon: Mic2 },
+  { key: 'PROMO', label: 'Promos', icon: Megaphone },
 ];
 
 function addMonths(dateString, months) {
@@ -89,7 +90,7 @@ function Artwork({ item, type, className = '' }) {
   return <img className={`schedule-artwork ${className}`} src={url} alt="" onError={() => setFailed(true)} />;
 }
 
-export default function Scheduler() {
+export default function Scheduler({ createRequest = 0 }) {
   const [schedules, setSchedules] = useState([]);
   const [runtime, setRuntime] = useState(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
@@ -97,6 +98,7 @@ export default function Scheduler() {
   const [playlists, setPlaylists] = useState([]);
   const [ads, setAds] = useState([]);
   const [jingles, setJingles] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -116,8 +118,9 @@ export default function Scheduler() {
     if (type === 'SONG') return songs;
     if (type === 'PLAYLIST') return playlists;
     if (type === 'ADVERTISEMENT') return ads;
-    return jingles;
-  }, [type, songs, playlists, ads, jingles]);
+    if (type === 'JINGLE') return jingles;
+    return promos;
+  }, [type, songs, playlists, ads, jingles, promos]);
 
   const filteredCollection = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -134,13 +137,14 @@ export default function Scheduler() {
     setLoading(true);
     setError('');
     try {
-      const [scheduleRows, runtimeStatus, songRows, playlistRows, adRows, jingleRows] = await Promise.all([
+      const [scheduleRows, runtimeStatus, songRows, playlistRows, adRows, jingleRows, promoRows] = await Promise.all([
         api.listSchedules(),
         api.getSchedulerRuntimeStatus(),
         api.listSongs({ limit: 1000 }),
         api.listPlaylists(),
         api.listAssets({ asset_type: 'ADVERTISEMENT' }),
         api.listAssets({ asset_type: 'JINGLE' }),
+        api.listAssets({ asset_type: 'PROMO' }),
       ]);
       setSchedules(scheduleRows || []);
       setRuntime(runtimeStatus || null);
@@ -148,6 +152,7 @@ export default function Scheduler() {
       setPlaylists(playlistRows || []);
       setAds(adRows || []);
       setJingles(jingleRows || []);
+      setPromos(promoRows || []);
     } catch (e) {
       setError(e.message || 'Unable to load scheduler data.');
     } finally {
@@ -156,6 +161,10 @@ export default function Scheduler() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (createRequest > 0) openCreate();
+  }, [createRequest]);
 
   useEffect(() => {
     let active = true;
@@ -230,7 +239,7 @@ export default function Scheduler() {
 
   async function saveSchedule(e) {
     e.preventDefault();
-    if (!selectedId) return setError('Select a song, playlist, advertisement, or jingle first.');
+    if (!selectedId) return setError('Select a song, playlist, advertisement, jingle, or promo first.');
     if (!days.length) return setError('Select at least one day.');
     if (endTime <= startTime) return setError('End time must be later than start time.');
     if (endDate < startDate) return setError('End date must be on or after start date.');
@@ -321,10 +330,10 @@ export default function Scheduler() {
 
         <div className="schedule-list">
           {loading ? <div className="scheduler-empty">Loading schedules…</div> : schedules.length === 0 ? (
-            <div className="scheduler-empty"><CalendarClock size={30} /><strong>No schedules yet</strong><span>Add your first song, playlist, ad or jingle schedule.</span><button onClick={openCreate}><Plus size={16} /> Add Schedule</button></div>
+            <div className="scheduler-empty"><CalendarClock size={30} /><strong>No schedules yet</strong><span>Add your first song, playlist, ad, jingle, or promo schedule.</span><button onClick={openCreate}><Plus size={16} /> Add Schedule</button></div>
           ) : schedules.map((schedule) => {
             const Icon = targetIcon(schedule.target_type);
-            const collection = schedule.target_type === 'SONG' ? songs : schedule.target_type === 'PLAYLIST' ? playlists : schedule.target_type === 'ADVERTISEMENT' ? ads : jingles;
+            const collection = schedule.target_type === 'SONG' ? songs : schedule.target_type === 'PLAYLIST' ? playlists : schedule.target_type === 'ADVERTISEMENT' ? ads : schedule.target_type === 'JINGLE' ? jingles : promos;
             const targetItem = collection.find((x) => Number(x.id) === Number(schedule.target_id));
             return (
               <article className={`scheduler-schedule-row ${schedule.enabled ? '' : 'is-disabled'}`} key={schedule.id}>
@@ -390,8 +399,8 @@ export default function Scheduler() {
                 <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning Drive Song" />
 
                 <div className="field-row">
-                  <div><label>Start time</label><input className="field" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></div>
-                  <div><label>End time</label><input className="field" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></div>
+                  <div><label>Start time</label><input className="field schedule-time-input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.currentTarget.showPicker?.()} aria-label="Start time" /></div>
+                  <div><label>End time</label><input className="field schedule-time-input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.currentTarget.showPicker?.()} aria-label="End time" /></div>
                 </div>
 
                 <label>Repeat on</label>
@@ -400,8 +409,8 @@ export default function Scheduler() {
                 </div>
 
                 <div className="field-row">
-                  <div><label>Start date</label><input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
-                  <div><label>End date</label><input className="field" type="date" value={endDate} max={startDate ? addMonths(startDate, 6) : undefined} onChange={(e) => setEndDate(e.target.value)} /></div>
+                  <div><label>Start date</label><input className="field schedule-date-input" type="date" value={startDate} onChange={(e) => { const next=e.target.value; setStartDate(next); if (endDate && next && endDate < next) setEndDate(addMonths(next, 6)); }} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.currentTarget.showPicker?.()} aria-label="Start date" /></div>
+                  <div><label>End date</label><input className="field schedule-date-input" type="date" value={endDate} min={startDate || undefined} max={startDate ? addMonths(startDate, 6) : undefined} onChange={(e) => setEndDate(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.currentTarget.showPicker?.()} aria-label="End date" /></div>
                 </div>
                 <button type="button" className="six-month-button" onClick={applySixMonthEnd}><CalendarClock size={15} /> Set maximum 6 months</button>
 
